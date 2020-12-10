@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "*.h": "cpp",
+        "chrono": "cpp",
+        "cmath": "cpp",
+        "ctime": "cpp",
+        "limits": "cpp",
+        "ratio": "cpp",
+        "*.tcc": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "complex": "cpp",
+        "vector": "cpp",
+        "random": "cpp",
+        "rb_tree": "cpp"
+    }
+}
