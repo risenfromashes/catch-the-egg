@@ -31,6 +31,10 @@
 #define max(x, y) ((x > y) ? (x) : (y))
 #endif
 
+#ifndef sgn
+#define sgn(x) (2 * (x >= 0) - 1)
+#endif
+
 typedef struct {
     double x, y;
 } Point;
