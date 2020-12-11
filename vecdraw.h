@@ -12,7 +12,7 @@ typedef struct {
 
 typedef struct {
     double x1, y1, x2, y2;
-    double m;
+    double m; // yslope
 } Edge;
 
 // compare by y cord
@@ -49,6 +49,7 @@ typedef struct {
     Edge*  edges;
     int    n_edges;
     double x_min, x_max;
+    double y_min, y_max;
 } Path;
 
 Path* createPath(
@@ -62,15 +63,18 @@ Path* createPath(
     path->points      = points;
     path->n_points    = n_points;
     path->closed      = closed;
-    path->x_min = INFINITE, path->x_max = -INFINITY;
+    path->x_min = INFINITY, path->x_max = -INFINITY;
+    path->y_min = INFINITY, path->y_max = -INFINITY;
     path->edges = (Edge*)malloc(sizeof(Edge) * n_points);
     int k       = 0;
     for (int i = 0; i < path->n_points; i++) {
         Point p1 = path->points[i], p2 = path->points[(i + 1) % n_points];
         path->x_min = min(path->x_min, p1.x);
         path->x_max = max(path->x_max, p1.x);
-        if (fabs(p1.x - p2.x) > 1e-8) {
-            double m = (p1.y - p2.y) / (p1.x - p2.x);
+        path->y_min = min(path->y_min, p1.y);
+        path->y_max = max(path->y_max, p1.y);
+        if (fabs(p1.y - p2.y) > 1e-8) {
+            double m = (p1.x - p2.x) / (p1.y - p2.y);
             if (p1.y < p2.y)
                 path->edges[k] = {.x1 = p1.x, .y1 = p1.y, .x2 = p2.x, .y2 = p2.y, .m = m};
             else
@@ -103,15 +107,16 @@ void fillPath(Path* path)
     double         width  = iScreenWidth;
     double         height = iScreenHeight;
     double         x_min = max(0, path->x_min), x_max = min(width, ceil(path->x_max));
-    double         y_min = max(0, path->edges[0].y1), y_max = min(height, ceil(path->edges[path->n_points - 1].y2));
+    double         y_min = max(0, path->y_min), y_max = min(height, ceil(path->y_max));
     int            k = 0;
     for (int y = y_min; y <= y_max; y++) {
         while (k < path->n_edges && (int)round(path->edges[k].y1) <= y)
             RBTreeInsert(activeEdges, &path->edges[k++]);
-        RBNode* min = RBTreeMin(activeEdges);
-        while ((int)round(RBValue(min, Edge).y2) < y) {
-            min = RBNodeNext(min);
-            RBTreeDelete(activeEdges, min);
+        RBNode *max = RBTreeMax(activeEdges), *max_;
+        while (max != RBNull && (int)round(RBValue(max, Edge).y2) < y) {
+            max_ = max;
+            max  = RBNodePrev(max);
+            RBTreeDelete(activeEdges, max_);
         }
         for (int x = x_min, c = 0; x <= x_max; x++)
             intersections[x] = 0;
@@ -137,4 +142,67 @@ void drawPath(Path* path)
 {
     fillPath(path);
     if (path->strokeWidth > 0.1) strokePath(path);
+}
+typedef struct {
+    double mat[3][3];
+} TransformMat;
+
+TransformMat identity()
+{
+    TransformMat mat;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            mat.mat[i][j] == i == j;
+    return mat;
+}
+
+TransformMat matMul(TransformMat m1, TransformMat m2)
+{
+    TransformMat mat;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) {
+            mat.mat[i][j] = 0;
+            for (int k = 0; k < 3; k++)
+                mat.mat[i][j] += m1.mat[i][k] * m2.mat[k][j];
+        }
+    return mat;
+}
+TransformMat rotateOrginMat(double rad)
+{
+    TransformMat mat = identity();
+    mat.mat[0][0]    = cos(rad);
+    mat.mat[0][1]    = -sin(rad);
+    mat.mat[1][0]    = sin(rad);
+    mat.mat[1][1]    = cos(rad);
+    return mat;
+}
+TransformMat translateMat(Point d)
+{
+    TransformMat mat = identity();
+    mat.mat[0][2]    = d.x;
+    mat.mat[1][2]    = d.y;
+    return mat;
+}
+TransformMat rotateMat(double rad, Point c)
+{
+    return matMul(translateMat(c), matMul(rotateOrginMat(rad), translateMat(neg(c))));
+}
+TransformMat skewMat(double radX, double radY)
+{
+    TransformMat mat = identity();
+    mat.mat[0][1]    = tan(radX);
+    mat.mat[1][0]    = tan(radY);
+    return mat;
+}
+TransformMat scaleMat(Point s)
+{
+    TransformMat mat = identity();
+    mat.mat[0][0]    = s.x;
+    mat.mat[1][1]    = s.y;
+    return mat;
+}
+
+Point applyTransform(TransformMat m, Point p)
+{
+    return {m.mat[0][0] * p.x + m.mat[0][1] * p.y + m.mat[0][2], m.mat[1][0] * p.x + m.mat[1][1] * p.y + m.mat[1][2]};
 }

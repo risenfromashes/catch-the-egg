@@ -299,8 +299,9 @@ void RBTreeDelete(RBTree* tree, RBNode* z)
 
 void RBNodeClear(RBTree* tree, RBNode* z)
 {
-    if (z->left != RBNull) RBNodeClear(tree, z->left);
-    if (z->right != RBNull) RBNodeClear(tree, z->right);
+    if (z == RBNull) return;
+    RBNodeClear(tree, z->left);
+    RBNodeClear(tree, z->right);
     if (z == tree->root) tree->root = RBNull;
 #ifdef RBTREE_REUSE_NODES
     z->right           = tree->recycleNodes;
@@ -316,8 +317,9 @@ void RBTreeClear(RBTree* tree) { RBNodeClear(tree, tree->root); }
 
 void RBNodeFree(RBTree* tree, RBNode* z)
 {
-    if (z->left != RBNull) RBNodeFree(tree, z->left);
-    if (z->right != RBNull) RBNodeFree(tree, z->right);
+    if (z == RBNull) return;
+    RBNodeFree(tree, z->left);
+    RBNodeFree(tree, z->right);
     if (z == tree->root) tree->root = RBNull;
 #ifndef RBTREE_DONOT_COPY_VALUES
     free(z->value);

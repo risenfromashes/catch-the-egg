@@ -45,6 +45,7 @@ typedef struct {
 
 typedef Point Vec;
 
+double toRad(double deg) { return deg * PI / 180; }
 Point  add(Point p1, Point p2) { return {p1.x + p2.x, p1.y + p2.y}; }
 Point  sub(Point p1, Point p2) { return {p1.x - p2.x, p1.y - p2.y}; }
 Point  neg(Point p) { return {-p.x, -p.y}; }
