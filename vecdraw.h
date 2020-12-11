@@ -213,3 +213,33 @@ Point applyTransform(TransformMat m, Point p)
 {
     return {m.mat[0][0] * p.x + m.mat[0][1] * p.y + m.mat[0][2], m.mat[1][0] * p.x + m.mat[1][1] * p.y + m.mat[1][2]};
 }
+
+typedef struct {
+    int    n, capacity;
+    Point* p;
+} PointVector;
+
+PointVector* createPointVector()
+{
+    PointVector* vec = (PointVector*)malloc(sizeof(PointVector));
+    vec->n           = 0;
+    vec->capacity    = 16;
+    vec->p           = (Point*)malloc(sizeof(Point) * vec->capacity);
+    return vec;
+}
+
+void pointVectorPush(PointVector* pvec, Point p)
+{
+    assert(pvec->n <= pvec->capacity);
+    if (pvec->n == pvec->capacity) {
+        pvec->capacity *= 2;
+        Point* t = (Point*)malloc(sizeof(Point) * pvec->capacity);
+        memcpy(t, pvec->p, pvec->n * sizeof(Point));
+        free(pvec->p);
+        pvec->p = t;
+    }
+    pvec->p[pvec->n++] = p;
+}
+
+Point pointVectorBack(PointVector* pvec) { return pvec->p[pvec->n - 1]; }
+Point pointVectorFront(PointVector* pvec) { return pvec->p[0]; }

@@ -4,6 +4,8 @@
 #include "ext.h"
 #include "vecdraw.h"
 
+#define SVG_DS 2
+
 typedef enum { CSS_CLASS, CSS_ID, CSS_TAG } CSSSelectionType;
 typedef enum { CSS_FILL, CSS_LINEAR_GRADIENT, CSS_RADIAL_GRADIENT } CSSBackgroundType;
 typedef enum {
@@ -22,7 +24,7 @@ typedef enum {
     SVG_ELLIPSE
 } SVGNodeType;
 
-SVGNodeType parseNodeType(const char* tag)
+SVGNodeType SVGParseNodeType(const char* tag)
 {
     if (strcmp(tag, "?xml"))
         return XMLDOC;
@@ -117,7 +119,7 @@ typedef struct _XMLNode {
 } XMLNode;
 
 // returns 1 if tag has body
-int parseAttributes(char* buf, int* j, XMLNode* node)
+int XMLParseAttributes(char* buf, int* j, XMLNode* node)
 {
     int i = 0;
     while (1) {
@@ -146,7 +148,7 @@ int parseAttributes(char* buf, int* j, XMLNode* node)
     return 1;
 }
 
-int parseEndTag(char* buf, int* j)
+int XMLParseEndTag(char* buf, int* j)
 {
     int i = 0;
     while (buf[i] == ' ')
@@ -184,7 +186,7 @@ TransformMat SVGTranslateMat(double dx, double dy) { return translateMat({dx, dy
 TransformMat SVGSkewXMat(double degx) { return skewMat(-toRad(degx), 0); }
 TransformMat SVGSkewYMat(double degy) { return skewMat(0, -toRad(degy)); }
 
-TransformMat parseTransform(const char* str)
+TransformMat SVGParseTransform(const char* str)
 {
     int i = 0;
     while (str[i] == ' ')
@@ -250,7 +252,7 @@ TransformMat parseTransform(const char* str)
     return identity();
 }
 
-XMLAttribute* findAttribute(XMLNode* xmlnode, const char* key)
+XMLAttribute* XMLFindAttribute(XMLNode* xmlnode, const char* key)
 {
     XMLAttribute key  = {.key = key};
     RBNode*      attr = RBTreeFind(xmlnode->attributes, &key);
@@ -275,10 +277,10 @@ XMLNode* parseNode(char* buf, int* j)
     while (isalpha(buf[i]))
         i++;
     buf[i++]   = '\0';
-    node->type = parseNodeType(node->tagName);
-    if (parseAttributes(buf + i, &i, node)) {
+    node->type = SVGParseNodeType(node->tagName);
+    if (XMLParseAttributes(buf + i, &i, node)) {
         XMLNode* next_node = node;
-        while (!parseEndTag(buf + i, &i)) {
+        while (!XMLParseEndTag(buf + i, &i)) {
             next_node->next = parseNode(buf + i, &i);
             next_node       = next_node->next;
         }
@@ -352,17 +354,90 @@ Color parseColor(const char* str)
     return c;
 }
 
+Point SVGMoveTo(PointVector* points, Point p)
+{
+    pointVectorPush(points, p);
+    return p;
+}
+Point SVGLineTo(PointVector* points, Point p2, int rel)
+{
+    Point p1 = pointVectorBack(points);
+    if (rel) p2 = add(p2, p1);
+    pointVectorPush(points, p2);
+    return p2;
+}
+Point SVGHLineTo(PointVector* points, double x2, int rel)
+{
+    Point p1 = pointVectorBack(points);
+    Point p2 = {x2, p1.y};
+    if (rel) p2.x += p1.x;
+    pointVectorPush(points, p2);
+    return p2;
+}
+Point SVGVLineTo(PointVector* points, double y2, int rel)
+{
+    Point p1 = pointVectorBack(points);
+    Point p2 = {p1.x, y2};
+    if (rel) p2.y += p1.y;
+    pointVectorPush(points, p2);
+    return p2;
+}
+void SVGCubicBezier(PointVector* points, Point p1, Point c1, Point c2, Point p2)
+{
+    double S  = norm(sub(c1, p1)) + norm(sub(c2, c1)) + norm(sub(p2, c2));
+    double N  = (S / SVG_DS);
+    double dt = 1 / N;
+    Point  p;
+    for (double t = 0; t < 1.0; t += dt) {
+        p = mul(p1, (1 - t) * (1 - t) * (1 - t));
+        p = add(p, mul(c1, 3 * (1 - t) * (1 - t) * t));
+        p = add(p, mul(c2, 3 * (1 - t) * t * t));
+        p = add(p, mul(p2, t * t * t));
+        pointVectorPush(points, p);
+    }
+    pointVectorPush(points, p2);
+}
+
+void SVGCubicBezier(PointVector* points, Point p1, Point c1, Point c2, Point p2)
+{
+    double S  = norm(sub(c1, p1)) + norm(sub(c2, c1)) + norm(sub(p2, c2));
+    double N  = (S / SVG_DS);
+    double dt = 1 / N;
+    Point  p;
+    for (double t = 0; t < 1.0; t += dt) {
+        p = mul(p1, (1 - t) * (1 - t) * (1 - t));
+        p = add(p, mul(c1, 3 * (1 - t) * (1 - t) * t));
+        p = add(p, mul(c2, 3 * (1 - t) * t * t));
+        p = add(p, mul(p2, t * t * t));
+        pointVectorPush(points, p);
+    }
+    pointVectorPush(points, p2);
+}
+
+Point SVGCubicBezierTo(PointVector* points, Point c1, Point c2, Point p2, int rel)
+{
+    Point p1 = pointVectorBack(points);
+    if (rel) {
+        c1 = add(p2, c1);
+        c2 = add(p2, c2);
+        p2 = add(p2, p1);
+    }
+}
+Point SVGQuadraticBezierTo(PointVector* points, double y) {}
+Point SVGSmoothCubicBezierTo(PointVector* points, Point c1, Point c2, int rel) {}
+Point SVGSmoothQuadraticBezierTo(PointVector* points, double y) {}
+Point SVGArcTo(PointVector* points, double rx, double ry, double deg, int laf, int sf, Point p2, int rel) {}
 Path* parsePath(XMLNode* pathNode)
 {
-    XMLAttribute* attr = findAttribute(pathNode, "d");
+    XMLAttribute* attr = XMLFindAttribute(pathNode, "d");
     assert(attr);
     int         closed = 1;
     const char* cmds   = attr->val;
-    enum
-    for (int i = 0; cmds[i]; i++) {
-        if (cmds[i] == 'z' || cmds[i] == 'Z') {
-            closed = 1;
-            break;
-        }
-    }
+    // enum
+    // for (int i = 0; cmds[i]; i++) {
+    //     if (cmds[i] == 'z' || cmds[i] == 'Z') {
+    //         closed = 1;
+    //         break;
+    //     }
+    // }
 }
