@@ -321,9 +321,7 @@ void RBNodeFree(RBTree* tree, RBNode* z)
     RBNodeFree(tree, z->left);
     RBNodeFree(tree, z->right);
     if (z == tree->root) tree->root = RBNull;
-#ifndef RBTREE_DONOT_COPY_VALUES
     free(z->value);
-#endif
     free(z);
 }
 void RBTreeFree(RBTree* tree)
@@ -333,9 +331,7 @@ void RBTreeFree(RBTree* tree)
     while (x != RBNull) {
         y = x;
         x = x->right;
-#ifndef RBTREE_DONOT_COPY_VALUES
         free(y->value);
-#endif
         free(y);
     }
 #endif

@@ -75,10 +75,21 @@ Point normal(Point p)
     return {-p.y / D, p.x / D};
 }
 
-Point      pmin(Point p1, Point p2) { return {min(p1.x, p2.x), min(p1.y, p2.y)}; }
-Point      pmax(Point p1, Point p2) { return {max(p1.x, p2.x), max(p1.y, p2.y)}; }
-Vec        normmax(Vec r1, Vec r2) { return norm(r1) > norm(r2) ? r1 : r2; }
-Vec        normmin(Vec r1, Vec r2) { return norm(r1) < norm(r2) ? r1 : r2; }
+Point pmin(Point p1, Point p2) { return {min(p1.x, p2.x), min(p1.y, p2.y)}; }
+Point pmax(Point p1, Point p2) { return {max(p1.x, p2.x), max(p1.y, p2.y)}; }
+Vec   normmax(Vec r1, Vec r2) { return norm(r1) > norm(r2) ? r1 : r2; }
+Vec   normmin(Vec r1, Vec r2) { return norm(r1) < norm(r2) ? r1 : r2; }
+
+Interval solveQuadratic(double a, double b, double c)
+{
+    assert(b * b >= 4 * a * c);
+    double   D = sqrt(b * b - 4 * a * c);
+    Interval i;
+    i.l = (-b + D) / 2 / a;
+    i.r = (-b - D) / 2 / a;
+    return i;
+}
+
 static int transparent = 0;
 
 void iSetColorEx(double r, double g, double b, double a)

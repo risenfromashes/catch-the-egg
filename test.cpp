@@ -21,15 +21,6 @@ void drawEllipse(Point c, Point r, double rad)
     iPath(p, n, 2, 1);
     free(p);
 }
-Interval solveQuadratic(double a, double b, double c)
-{
-    assert(b * b >= 4 * a * c);
-    double   D = sqrt(b * b - 4 * a * c);
-    Interval i;
-    i.l = (-b + D) / 2 / a;
-    i.r = (-b - D) / 2 / a;
-    return i;
-}
 double getEllipseParameter(Point c, Point r, double rad, Point p)
 {
     double x = ((p.y - c.y) * cos(rad) - (p.x - c.x) * sin(rad)) / r.y;
