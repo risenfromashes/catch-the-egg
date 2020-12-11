@@ -60,24 +60,14 @@ SVGNodeType parseNodeType(const char* tag)
 
 typedef struct {
     CSSSelectionType type;
-    char*            key;
+    const char*      key;
 } CSSSelector;
 
 typedef struct {
-    CSSBackgroundType type;
-    void*             value;
-} CSSFill;
-
-typedef struct {
-    Color color;
-    float width;
-} CSSStroke;
-
-typedef struct {
     // CSSSelector selector;
-    CSSFill   fill;
-    CSSStroke stroke;
-} CSSStyle;
+    Fill   fill;
+    Stroke stroke;
+} Style;
 
 typedef struct _SVGPathGroup {
     CSSSelector           selector;
@@ -85,13 +75,20 @@ typedef struct _SVGPathGroup {
     struct _SVGGroup*     next;
 } SVGPathGroup;
 
-typedef struct {
+// typedef struct {
+//     double x, y;
+//     double w, h;
+// } SVGRect;
 
-} SVGRect;
+// typedef struct {
+//     double cx, cy;
+//     double r;
+// } SVGCircle;
 
-typedef struct {
-
-} SVGCircle;
+// typedef struct {
+//     double cx, cy;
+//     double r;
+// } SVGCircle;
 
 int CSSSelectionComp(const void* p1, const void* p2)
 {
@@ -253,10 +250,14 @@ TransformMat parseTransform(const char* str)
     return identity();
 }
 
-XMLAttribute* findAttribute(XMLNode* node, const char* key)
+XMLAttribute* findAttribute(XMLNode* xmlnode, const char* key)
 {
-    XMLAttribute key = {.key = key};
-    return RBPointer(node, XMLAttribute);
+    XMLAttribute key  = {.key = key};
+    RBNode*      attr = RBTreeFind(xmlnode->attributes, &key);
+    if (attr == RBNull)
+        return NULL;
+    else
+        return RBPointer(attr, XMLAttribute);
 }
 
 XMLNode* parseNode(char* buf, int* j)
@@ -349,4 +350,19 @@ Color parseColor(const char* str)
     }
     Color c = {.r = r, .g = g, .b = b};
     return c;
+}
+
+Path* parsePath(XMLNode* pathNode)
+{
+    XMLAttribute* attr = findAttribute(pathNode, "d");
+    assert(attr);
+    int         closed = 1;
+    const char* cmds   = attr->val;
+    enum
+    for (int i = 0; cmds[i]; i++) {
+        if (cmds[i] == 'z' || cmds[i] == 'Z') {
+            closed = 1;
+            break;
+        }
+    }
 }

@@ -39,10 +39,20 @@ int EdgeCompMaxY(const void* p1, const void* p2)
 }
 
 typedef struct {
-    Color  fillColor;
-    Color  strokeColor;
-    double strokeWidth;
-    double opacity;
+    unsigned char fill;
+    Color         color;
+    float         opacity;
+} Fill;
+
+typedef struct {
+    float width;
+    Color color;
+    float opacity;
+} Stroke;
+
+typedef struct {
+    Fill   fill;
+    Stroke stroke;
     Point* points;
     int    n_points;
     int    closed;
@@ -52,17 +62,14 @@ typedef struct {
     double y_min, y_max;
 } Path;
 
-Path* createPath(
-    Point* points, int n_points, Color fillColor, Color strokeColor, double strokeWidth, double opacity, int closed)
+Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int closed)
 {
-    Path* path        = (Path*)malloc(sizeof(Path));
-    path->fillColor   = fillColor;
-    path->strokeColor = strokeColor;
-    path->strokeWidth = strokeWidth;
-    path->opacity     = opacity;
-    path->points      = points;
-    path->n_points    = n_points;
-    path->closed      = closed;
+    Path* path     = (Path*)malloc(sizeof(Path));
+    path->fill     = fill;
+    path->stroke   = stroke;
+    path->points   = points;
+    path->n_points = n_points;
+    path->closed   = closed;
     path->x_min = INFINITY, path->x_max = -INFINITY;
     path->y_min = INFINITY, path->y_max = -INFINITY;
     path->edges = (Edge*)malloc(sizeof(Edge) * n_points);
@@ -95,13 +102,13 @@ void freePath(Path* path)
 }
 void strokePath(Path* path)
 {
-    iSetColorEx(path->strokeColor.r, path->strokeColor.g, path->strokeColor.b, path->opacity);
-    iPath(path->points, path->n_points, path->strokeWidth, path->closed);
+    iSetColorEx(path->stroke.color.r, path->stroke.color.g, path->stroke.color.b, path->stroke.opacity);
+    iPath(path->points, path->n_points, path->stroke.width, path->closed);
 }
 
 void fillPath(Path* path)
 {
-    iSetColorEx(path->fillColor.r, path->fillColor.g, path->fillColor.b, path->opacity);
+    iSetColorEx(path->fill.color.r, path->fill.color.g, path->fill.color.b, path->fill.opacity);
     static RBTree* activeEdges = createRBTree(EdgeCompMaxY);
     int            intersections[MAX_WIDTH + 5];
     double         width  = iScreenWidth;
@@ -141,7 +148,7 @@ void fillPath(Path* path)
 void drawPath(Path* path)
 {
     fillPath(path);
-    if (path->strokeWidth > 0.1) strokePath(path);
+    if (path->stroke.width > 0.1) strokePath(path);
 }
 typedef struct {
     double mat[3][3];
