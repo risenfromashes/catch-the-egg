@@ -1,5 +1,5 @@
-#include "ext.h"
 #include "stdio.h"
+#include "ext.h"
 #define RBTREE_DONOT_COPY_VALUES
 #define RBTREE_REUSE_NODES
 #include "rbtree.h"
@@ -64,7 +64,7 @@ TransformMat scaleMat(Point s)
     return mat;
 }
 
-Point applyTransform(TransformMat m, Point p)
+Point transform(TransformMat m, Point p)
 {
     return {m.mat[0][0] * p.x + m.mat[0][1] * p.y + m.mat[0][2], m.mat[1][0] * p.x + m.mat[1][1] * p.y + m.mat[1][2]};
 }
@@ -153,11 +153,18 @@ Path* duplicatePath(Path* from)
     return path;
 }
 
-void applyTransformToPath(TransformMat mat, Path* path)
+void applyLocalTransform(TransformMat mat, Path* path)
 {
 
     for (int i = 0; i < path->n_points; i++)
-        path->points[i] = applyTransform(mat, path->init_points[i]);
+        path->init_points[i] = transform(mat, path->init_points[i]);
+}
+
+void applyTransform(TransformMat mat, Path* path)
+{
+
+    for (int i = 0; i < path->n_points; i++)
+        path->points[i] = transform(mat, path->init_points[i]);
     for (int i = 0; i < path->n_points; i++) {
         Point p1 = path->points[i], p2 = path->points[(i + 1) % path->n_points];
         path->x_min = min(path->x_min, p1.x);
@@ -225,9 +232,9 @@ void fillPath(Path* path)
     RBTreeClear(activeEdges);
 }
 
-void drawPath(Path* path, TransformMat mat)
+void renderPath(Path* path, TransformMat mat)
 {
-    applyTransformToPath(mat, path);
+    applyTransform(mat, path);
     fillPath(path);
     if (path->stroke.width > 0.1) strokePath(path);
 }
