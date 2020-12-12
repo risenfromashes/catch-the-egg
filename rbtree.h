@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -70,6 +71,7 @@ RBTree* createRBTree(
 
 RBNode* RBNodeMin(RBNode* z)
 {
+    if (z == RBNull) return z;
     if (z->left != RBNull) return RBNodeMin(z->left);
     return z;
 }
@@ -78,6 +80,7 @@ RBNode* RBTreeMin(RBTree* tree) { return RBNodeMin(tree->root); }
 
 RBNode* RBNodeMax(RBNode* z)
 {
+    if (z == RBNull) return z;
     if (z->right != RBNull) return RBNodeMax(z->right);
     return z;
 }
@@ -328,7 +331,7 @@ void RBTreeFree(RBTree* tree)
 {
 #ifdef RBTREE_REUSE_NODES
     RBNode *x = tree->recycleNodes, *y;
-    while (x != RBNull) {
+    while (x != NULL) {
         y = x;
         x = x->right;
         free(y->value);

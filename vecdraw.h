@@ -1,3 +1,5 @@
+#pragma once
+
 #include "stdio.h"
 #include "ext.h"
 #define RBTREE_DONOT_COPY_VALUES
@@ -14,7 +16,7 @@ TransformMat identity()
     TransformMat mat;
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
-            mat.mat[i][j] == i == j;
+            mat.mat[i][j] = i == j;
     return mat;
 }
 
@@ -124,6 +126,34 @@ typedef struct {
     double y_min, y_max;
 } Path;
 
+void applyTransform(TransformMat mat, Path* path)
+{
+    for (int i = 0; i < path->n_points; i++)
+        path->points[i] = transform(mat, path->init_points[i]);
+    path->x_min = INFINITY, path->x_max = -INFINITY;
+    path->y_min = INFINITY, path->y_max = -INFINITY;
+    for (int i = 0; i < path->n_points; i++) {
+        Point p1 = path->points[i], p2 = path->points[(i + 1) % path->n_points];
+        path->x_min = min(path->x_min, p1.x);
+        path->x_max = max(path->x_max, p1.x);
+        path->y_min = min(path->y_min, p1.y);
+        path->y_max = max(path->y_max, p1.y);
+        double m    = (p1.x - p2.x) / (p1.y - p2.y);
+        if (p1.y < p2.y)
+            path->edges[i] = {.x1 = p1.x, .y1 = p1.y, .x2 = p2.x, .y2 = p2.y, .m = m};
+        else
+            path->edges[i] = {.x1 = p2.x, .y1 = p2.y, .x2 = p1.x, .y2 = p1.y, .m = m};
+    }
+    qsort(path->edges, path->n_points, sizeof(Edge), EdgeCompMinY);
+}
+
+void applyLocalTransform(TransformMat mat, Path* path)
+{
+    for (int i = 0; i < path->n_points; i++)
+        path->init_points[i] = transform(mat, path->init_points[i]);
+    applyTransform(identity(), path);
+}
+
 Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int closed)
 {
     Path* path        = (Path*)malloc(sizeof(Path));
@@ -151,34 +181,6 @@ Path* duplicatePath(Path* from)
     path->edges  = (Edge*)malloc(sizeof(Edge) * path->n_points);
     applyTransform(identity(), path);
     return path;
-}
-
-void applyLocalTransform(TransformMat mat, Path* path)
-{
-    for (int i = 0; i < path->n_points; i++)
-        path->init_points[i] = transform(mat, path->init_points[i]);
-    applyTransform(identity(), path);
-}
-
-void applyTransform(TransformMat mat, Path* path)
-{
-    for (int i = 0; i < path->n_points; i++)
-        path->points[i] = transform(mat, path->init_points[i]);
-    path->x_min = INFINITY, path->x_max = -INFINITY;
-    path->y_min = INFINITY, path->y_max = -INFINITY;
-    for (int i = 0; i < path->n_points; i++) {
-        Point p1 = path->points[i], p2 = path->points[(i + 1) % path->n_points];
-        path->x_min = min(path->x_min, p1.x);
-        path->x_max = max(path->x_max, p1.x);
-        path->y_min = min(path->y_min, p1.y);
-        path->y_max = max(path->y_max, p1.y);
-        double m    = (p1.x - p2.x) / (p1.y - p2.y);
-        if (p1.y < p2.y)
-            path->edges[i] = {.x1 = p1.x, .y1 = p1.y, .x2 = p2.x, .y2 = p2.y, .m = m};
-        else
-            path->edges[i] = {.x1 = p2.x, .y1 = p2.y, .x2 = p1.x, .y2 = p1.y, .m = m};
-    }
-    qsort(path->edges, path->n_points, sizeof(Edge), EdgeCompMinY);
 }
 
 void freePath(Path* path)
@@ -235,8 +237,9 @@ void fillPath(Path* path)
 
 void renderPath(Path* path, TransformMat mat)
 {
+    static int f = 1;
     applyTransform(mat, path);
-    fillPath(path);
+    if (path->fill.fill) fillPath(path);
     if (path->stroke.width > 0.1) strokePath(path);
 }
 

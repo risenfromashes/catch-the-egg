@@ -8,6 +8,8 @@
  *
  */
 
+#pragma once
+
 #ifdef PI
 #undef PI
 #endif

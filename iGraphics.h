@@ -7,6 +7,8 @@
 //  Version: 2.0.2012.2015
 //
 
+#pragma once
+
 #include "OpenGL/include/glut.h"
 #include <stdio.h>
 #include <stdlib.h>
