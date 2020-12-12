@@ -60,19 +60,8 @@ SVGNodeType SVGParseNodeType(const char* tag)
         return XMLTAG;
 }
 
-typedef struct {
-    CSSSelectionType type;
-    const char*      key;
-} CSSSelector;
-
-typedef struct {
-    // CSSSelector selector;
-    Fill   fill;
-    Stroke stroke;
-} Style;
-
 typedef struct _SVGPathGroup {
-    CSSSelector           selector;
+    const char*           id;
     struct _SVGGroupPath* children;
     struct _SVGGroup*     next;
 } SVGPathGroup;
@@ -91,13 +80,6 @@ typedef struct _SVGPathGroup {
 //     double cx, cy;
 //     double r;
 // } SVGCircle;
-
-int CSSSelectionComp(const void* p1, const void* p2)
-{
-    const CSSSelector *s1 = (const CSSSelector*)p1, *s2 = (const CSSSelector*)p2;
-    if (s1->type != s1->type) return strcmp(s1->key, s2->key);
-    return s1->type - s2->type;
-}
 
 typedef struct {
     const char* key;
@@ -186,9 +168,22 @@ TransformMat SVGTranslateMat(double dx, double dy) { return translateMat({dx, dy
 TransformMat SVGSkewXMat(double degx) { return skewMat(-toRad(degx), 0); }
 TransformMat SVGSkewYMat(double degy) { return skewMat(0, -toRad(degy)); }
 
-TransformMat SVGParseTransform(const char* str)
+XMLAttribute* XMLFindAttribute(XMLNode* xmlnode, const char* key)
 {
-    int i = 0;
+    XMLAttribute key  = {.key = key};
+    RBNode*      attr = RBTreeFind(xmlnode->attributes, &key);
+    if (attr == RBNull)
+        return NULL;
+    else
+        return RBPointer(attr, XMLAttribute);
+}
+
+TransformMat SVGParseTransform(XMLNode* node)
+{
+    XMLAttribute* attr = XMLFindAttribute(node, "transform");
+    if (attr == NULL) return identity();
+    const char* str = attr->val;
+    int         i   = 0;
     while (str[i] == ' ')
         i++;
     double           args[6];
@@ -252,16 +247,6 @@ TransformMat SVGParseTransform(const char* str)
     return identity();
 }
 
-XMLAttribute* XMLFindAttribute(XMLNode* xmlnode, const char* key)
-{
-    XMLAttribute key  = {.key = key};
-    RBNode*      attr = RBTreeFind(xmlnode->attributes, &key);
-    if (attr == RBNull)
-        return NULL;
-    else
-        return RBPointer(attr, XMLAttribute);
-}
-
 XMLNode* XMLParseNode(char* buf, int* j)
 {
     int i = 0;
@@ -286,6 +271,19 @@ XMLNode* XMLParseNode(char* buf, int* j)
         }
     }
     return node;
+}
+
+void XMLFreeNode(XMLNode* node)
+{
+    XMLNode *y, *z = node->children;
+    while (z) {
+        y = z;
+        z = z->next;
+        XMLFreeNode(y);
+    }
+    RBTreeFree(node->attributes);
+    if (node->value) free(node->value);
+    free(node);
 }
 
 SVGPathGroup* SVGParse(const char* filePath)
