@@ -132,10 +132,10 @@ Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int clos
     path->init_points = points;
     path->n_points    = n_points;
     path->closed      = closed;
-    path->x_min = INFINITY, path->x_max = -INFINITY;
-    path->y_min = INFINITY, path->y_max = -INFINITY;
-    path->points = (Point*)malloc(sizeof(Point) * n_points);
-    path->edges  = (Edge*)malloc(sizeof(Edge) * n_points);
+    path->points      = (Point*)malloc(sizeof(Point) * n_points);
+    path->edges       = (Edge*)malloc(sizeof(Edge) * n_points);
+    applyTransform(identity(), path);
+    return path;
 }
 
 Path* duplicatePath(Path* from)
@@ -143,28 +143,29 @@ Path* duplicatePath(Path* from)
     Path* path        = (Path*)malloc(sizeof(Path));
     path->fill        = from->fill;
     path->stroke      = from->stroke;
-    path->init_points = from->points;
     path->n_points    = from->n_points;
     path->closed      = from->closed;
-    path->x_min = INFINITY, path->x_max = -INFINITY;
-    path->y_min = INFINITY, path->y_max = -INFINITY;
+    path->init_points = (Point*)malloc(sizeof(Point) * path->n_points);
+    memcpy(path->init_points, from->init_points, path->n_points * sizeof(Point));
     path->points = (Point*)malloc(sizeof(Point) * path->n_points);
     path->edges  = (Edge*)malloc(sizeof(Edge) * path->n_points);
+    applyTransform(identity(), path);
     return path;
 }
 
 void applyLocalTransform(TransformMat mat, Path* path)
 {
-
     for (int i = 0; i < path->n_points; i++)
         path->init_points[i] = transform(mat, path->init_points[i]);
+    applyTransform(identity(), path);
 }
 
 void applyTransform(TransformMat mat, Path* path)
 {
-
     for (int i = 0; i < path->n_points; i++)
         path->points[i] = transform(mat, path->init_points[i]);
+    path->x_min = INFINITY, path->x_max = -INFINITY;
+    path->y_min = INFINITY, path->y_max = -INFINITY;
     for (int i = 0; i < path->n_points; i++) {
         Point p1 = path->points[i], p2 = path->points[(i + 1) % path->n_points];
         path->x_min = min(path->x_min, p1.x);

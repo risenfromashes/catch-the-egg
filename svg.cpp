@@ -176,7 +176,13 @@ TransformMat SVGParseTransform(const char* str)
     return identity();
 }
 
-XMLNode* XMLParseNode(char* buf, int* j)
+int XMLNodeComp(const void* p1, const void* p2)
+{
+    const XMLNode *n1 = (const XMLNode*)p1, *n2 = (const XMLNode*)p2;
+    return strcmp(n1->id, n2->id);
+}
+
+XMLNode* XMLParseNode(XMLNode* parent, RBTree* idd, char* buf, int* j)
 {
     int i = 0;
     while (buf[i] == ' ')
@@ -186,6 +192,7 @@ XMLNode* XMLParseNode(char* buf, int* j)
         i++;
     XMLNode* node    = (XMLNode*)malloc(sizeof(XMLNode));
     node->attributes = createRBTree(XMLAttributeComp);
+    node->parent     = parent;
     node->value = node->children = node->next = NULL;
     node->tagName                             = buf + i;
     while (isalpha(buf[i]))
@@ -193,12 +200,30 @@ XMLNode* XMLParseNode(char* buf, int* j)
     buf[i++]   = '\0';
     node->type = SVGParseNodeType(node->tagName);
     if (XMLParseAttributes(buf + i, &i, node)) {
-        XMLNode* next_node = node;
+        XMLNode *child = NULL, *next_child;
         while (!XMLParseEndTag(buf + i, &i)) {
-            next_node->next = XMLParseNode(buf + i, &i);
-            next_node       = next_node->next;
+            next_child = XMLParseNode(node, idd, buf + i, &i);
+            if (child)
+                child->next = next_child;
+            else
+                node->children = next_child;
+            child = next_child;
         }
     }
+    XMLAttribute* idattr = XMLFindAttribute(node, "id");
+    if (idattr) {
+        node->id = idattr->val;
+        RBTreeInsert(idd, node);
+    }
+    else
+        node->id = '\0';
+    switch (node->type) {
+        case SVG_PATH: node->value = SVGParsePath(node); break;
+        case SVG_RECT: node->value = SVGParseRect(node); break;
+        case SVG_CIRCLE: node->value = SVGParseCircle(node); break;
+        case SVG_ELLIPSE: node->value = SVGParseEllipse(node); break;
+    }
+    *j += i;
     return node;
 }
 
@@ -224,13 +249,13 @@ SVGPathGroup* SVGParse(const char* filePath)
     char* buf = (char*)malloc(fileSize);
     fread(buf, fileSize, 1, file);
     fclose(file);
-
-    SVGPathGroup* g = (SVGPathGroup*)malloc(sizeof(SVGPathGroup));
-    g->children     = NULL;
-    g->children     = NULL;
-    int      i      = 0;
-    XMLNode* root   = XMLParseNode(buf, &i);
-    assert(stricmp(root->tagName, "svg"));
+    int      i    = 0;
+    RBTree*  idd  = createRBTree(XMLNodeComp);
+    XMLNode* root = XMLParseNode(NULL, idd, buf, &i);
+    assert(strcmp(root->tagName, "svg") == 0);
+    SVGPathGroup* ret = SVGParseGroup(NULL, root, identity());
+    XMLFreeNode(root);
+    return ret;
 }
 
 int hexToNum(char hex) { return isdigit(hex) ? hex - '0' : tolower(hex) - 'a' + 10; }
@@ -551,7 +576,7 @@ Path* SVGParsePath(XMLNode* pathNode)
     return path;
 }
 
-Path* SVGRect(XMLNode* node)
+Path* SVGParseRect(XMLNode* node)
 {
     assert(node->type == SVG_RECT);
     double        x = 0, y = 0, w = 0, h = 0;
@@ -570,7 +595,7 @@ Path* SVGRect(XMLNode* node)
     return path;
 }
 
-Path* SVGCircle(XMLNode* node)
+Path* SVGParseCircle(XMLNode* node)
 {
     assert(node->type == SVG_CIRCLE);
     double        cx = 0, cy = 0, r = 0;
@@ -591,7 +616,7 @@ Path* SVGCircle(XMLNode* node)
     return path;
 }
 
-Path* SVGEllipse(XMLNode* node)
+Path* SVGParseEllipse(XMLNode* node)
 {
     assert(node->type == SVG_ELLIPSE);
     double        cx = 0, cy = 0, rx = 0, ry = 0;
@@ -611,4 +636,78 @@ Path* SVGEllipse(XMLNode* node)
     Path* path = createPath(p, N, SVGParseFill(node), SVGParseStroke(node), 1);
     if (attr = XMLFindAttribute(node, "transform")) applyLocalTransform(SVGParseTransform(attr->val), path);
     return path;
+}
+
+XMLNode* SVGGetUseRef(XMLNode* node, RBTree* idd)
+{
+    assert(node->type == SVG_USE);
+    XMLAttribute* href = XMLFindAttribute(node, "xlink:href");
+    assert(href);
+    assert(href->val[0] == '#');
+    XMLNode key = {.id = href->val + 1};
+    void*   n   = RBTreeFind(idd, &key);
+    if (n)
+        return (XMLNode*)n;
+    else
+        NULL;
+}
+
+SVGPathGroup* SVGParseGroup(SVGPathGroup* parent, RBTree* idd, XMLNode* node, TransformMat mat)
+{
+    assert(node->type != SVG_USE);
+    SVGPathGroup* g = (SVGPathGroup*)malloc(sizeof(SVGPathGroup));
+    g->id           = strdup(node->id);
+    g->parent       = parent;
+    g->child = g->next = NULL;
+    g->isGroup         = node->type == SVG_G || node->type == SVGROOT; // treat root as a group
+    g->hidden          = 0;
+    XMLAttribute* attr;
+    if (attr = XMLFindAttribute(node, "transform")) mat = matMul(mat, SVGParseTransform(attr->val));
+    if (g->isGroup) {
+        SVGPathGroup *child = NULL, *next_child;
+        for (XMLNode *x = node->children, *y; x; x = x->next) {
+            switch (node->type) {
+                case SVG_G:
+                case SVG_PATH:
+                case SVG_RECT:
+                case SVG_CIRCLE:
+                case SVG_ELLIPSE: y = x; break;
+                case SVG_USE:
+                    y = SVGGetUseRef(x, idd);
+                    if (y == NULL) continue;
+                default: continue;
+            }
+            next_child = SVGParseGroup(g, y, mat);
+            if (child)
+                child->next = next_child;
+            else
+                g->child = next_child;
+            child = next_child;
+        }
+    }
+    else {
+        switch (node->type) {
+            case SVG_PATH:
+            case SVG_RECT:
+            case SVG_CIRCLE:
+            case SVG_ELLIPSE: {
+                Path* path = (Path*)node->value;
+                path       = duplicatePath(path);
+                applyLocalTransform(mat, path);
+                g->child = path;
+            } break;
+        }
+    }
+}
+
+void renderSVGPathGroup(SVGPathGroup* g, TransformMat mat)
+{
+    if (!g->hidden) {
+        if (g->isGroup) {
+            for (SVGPathGroup* c = (SVGPathGroup*)g->child; c; c = c->next)
+                renderSVGPathGroup(c, mat);
+        }
+        else
+            renderPath((Path*)g->child, mat);
+    }
 }

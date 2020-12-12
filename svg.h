@@ -42,34 +42,30 @@ typedef enum {
 
 SVGNodeType SVGParseNodeType(const char* tag);
 
-typedef struct _SVGPathGroup {
-    const char*           id;
-    struct _SVGGroupPath* children;
-    struct _SVGGroup*     next;
-} SVGPathGroup;
-
 typedef struct {
     const char* key;
     const char* val;
 } XMLAttribute;
 
 typedef struct _XMLNode {
+    const char*      id;
     SVGNodeType      type;
     const char*      tagName;
     RBTree*          attributes;
     void*            value;
+    struct _XMLNode* parent;
     struct _XMLNode* children;
     struct _XMLNode* next;
 } XMLNode;
 
 int           XMLAttributeComp(const void* p1, const void* p2);
+int           XMLNodeComp(const void* p1, const void* p2);
 int           XMLParseAttributes(char* buf, int* j, XMLNode* node);
 int           XMLParseEndTag(char* buf, int* j);
 XMLAttribute* XMLFindAttribute(XMLNode* xmlnode, const char* key);
-XMLNode*      XMLParseNode(char* buf, int* j);
+XMLNode*      XMLParseNode(XMLNode* parent, RBTree* idd, char* buf, int* j);
 void          XMLFreeNode(XMLNode* node);
 
-SVGPathGroup* SVGParse(const char* filePath);
 TransformMat  SVGParseTransform(const char* str);
 Color         SVGParseColor(const char* str);
 Fill          SVGParseFill(XMLNode* pathNode);
@@ -90,3 +86,15 @@ Path*         SVGParsePath(XMLNode* pathNode);
 Path*         SVGParseRect(XMLNode* node);
 Path*         SVGParseCircle(XMLNode* node);
 Path*         SVGParseEllipse(XMLNode* node);
+SVGPathGroup* SVGParse(const char* filePath);
+
+typedef struct _SVGPathGroup {
+    const char*           id;
+    int                   isGroup, hidden;
+    struct _SVGPathGroup* parent;
+    void*                 child;
+    struct _SVGPathGroup* next;
+} SVGPathGroup;
+
+XMLNode*      SVGGetUseRef(XMLNode* node, RBTree* idd);
+SVGPathGroup* SVGParseGroup(SVGPathGroup* parent, XMLNode* node, TransformMat mat);
