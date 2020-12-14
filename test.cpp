@@ -7,7 +7,7 @@ void iDraw()
 {
     double t = iGetTime();
     iClear();
-    renderSVGPathGroup(g, matMul(translateMat({400, 600}), scaleMat({0.5, -0.5})));
+    renderSVGPathGroup(g, matMul(translateMat({0, 700}), scaleMat({0.7, -0.7})));
 }
 void iMouseMove(int mx, int my) {}
 
@@ -27,7 +27,7 @@ void iSpecialKeyboard(unsigned char key)
 int main()
 {
     printf("parsing began\n");
-    g = SVGParse("assets/Chicken_1.svg");
+    g = SVGParse("assets/test_chicken.svg");
     printf("done parsing\n");
     iSetTransparency(1);
     iInitializeEx(width, height, "Demo!");

@@ -5,7 +5,7 @@
 #include <string.h>
 #include "vecdraw.h"
 
-#define SVG_DS 20
+#define SVG_DS 5
 
 typedef enum {
     SVG_TRANSFORM_ROTATE,
@@ -60,6 +60,10 @@ typedef struct _XMLNode {
     struct _XMLNode* next;
 } XMLNode;
 
+typedef struct {
+    double x, y, w, h;
+} ViewBox;
+
 int           XMLAttributeComp(const void* p1, const void* p2);
 int           XMLNodeComp(const void* p1, const void* p2);
 int           XMLParseAttributes(char* buf, int* j, XMLNode* node);
@@ -88,6 +92,8 @@ Path*        SVGParsePath(XMLNode* pathNode);
 Path*        SVGParseRect(XMLNode* node);
 Path*        SVGParseCircle(XMLNode* node);
 Path*        SVGParseEllipse(XMLNode* node);
+void         SVGAddPoint(PointVector* points, Point p);
+ViewBox      SVGParseViewBox(XMLNode* svgRoot);
 
 typedef struct _SVGPathGroup {
     const char*           id;
@@ -437,14 +443,14 @@ Color SVGParseColor(const char* str)
 
 Point SVGMoveTo(PointVector* points, Point p)
 {
-    pointVectorPush(points, p);
+    SVGAddPoint(points, p);
     return p;
 }
 Point SVGLineTo(PointVector* points, Point p2, int rel)
 {
     Point p1 = pointVectorBack(points);
     if (rel) p2 = add(p1, p2);
-    pointVectorPush(points, p2);
+    SVGAddPoint(points, p2);
     return p2;
 }
 Point SVGHLineTo(PointVector* points, double x2, int rel)
@@ -452,7 +458,7 @@ Point SVGHLineTo(PointVector* points, double x2, int rel)
     Point p1 = pointVectorBack(points);
     Point p2 = {x2, p1.y};
     if (rel) p2.x += p1.x;
-    pointVectorPush(points, p2);
+    SVGAddPoint(points, p2);
     return p2;
 }
 Point SVGVLineTo(PointVector* points, double y2, int rel)
@@ -460,7 +466,7 @@ Point SVGVLineTo(PointVector* points, double y2, int rel)
     Point p1 = pointVectorBack(points);
     Point p2 = {p1.x, y2};
     if (rel) p2.y += p1.y;
-    pointVectorPush(points, p2);
+    SVGAddPoint(points, p2);
     return p2;
 }
 void SVGCubicBezier(PointVector* points, Point p1, Point c1, Point c2, Point p2)
@@ -469,14 +475,14 @@ void SVGCubicBezier(PointVector* points, Point p1, Point c1, Point c2, Point p2)
     double N  = (S / SVG_DS);
     double dt = 1 / N;
     Point  p;
-    for (double t = 0; t < 1.0; t += dt) {
+    for (double t = dt; t < 1.0; t += dt) {
         p = mul(p1, (1 - t) * (1 - t) * (1 - t));
         p = add(p, mul(c1, 3 * (1 - t) * (1 - t) * t));
         p = add(p, mul(c2, 3 * (1 - t) * t * t));
         p = add(p, mul(p2, t * t * t));
-        pointVectorPush(points, p);
+        SVGAddPoint(points, p);
     }
-    pointVectorPush(points, p2);
+    SVGAddPoint(points, p2);
 }
 
 void SVGQuadraticBezier(PointVector* points, Point p1, Point c, Point p2)
@@ -485,13 +491,13 @@ void SVGQuadraticBezier(PointVector* points, Point p1, Point c, Point p2)
     double N  = (S / SVG_DS);
     double dt = 1 / N;
     Point  p;
-    for (double t = 0; t < 1.0; t += dt) {
+    for (double t = dt; t < 1.0; t += dt) {
         p = mul(p1, (1 - t) * (1 - t));
         p = add(p, mul(c, 2 * (1 - t) * t));
         p = add(p, mul(p2, t * t));
-        pointVectorPush(points, p);
+        SVGAddPoint(points, p);
     }
-    pointVectorPush(points, p2);
+    SVGAddPoint(points, p2);
 }
 
 Point SVGCubicBezierTo(PointVector* points, Point c1, Point c2, Point p2, int rel)
@@ -545,14 +551,13 @@ void SVGEllipseArc(PointVector* points, Point c, Point r, double rad, Point p1, 
     else
         t1 = t1_, t2 = t2_;
     Point p;
-    pointVectorPush(points, p1);
     for (double t = t1 + dt; t < t2; t += dt) {
         p.x = r.x * cos(t);
         p.y = r.y * sin(t);
         p   = add(rotate(p, rad, {0, 0}), c);
-        pointVectorPush(points, p);
+        SVGAddPoint(points, p);
     }
-    pointVectorPush(points, p2);
+    SVGAddPoint(points, p2);
 }
 void SVGArc(PointVector* points, double rx, double ry, double deg, int laf, int sf, Point p1, Point p2)
 {
@@ -853,4 +858,23 @@ void renderSVGPathGroup(SVGPathGroup* g, TransformMat mat)
             renderPath((Path*)g->child, mat);
         }
     }
+}
+
+void SVGAddPoint(PointVector* points, Point p)
+{
+    if (points->n == 0 || norm(sub(pointVectorBack(points), p)) > (SVG_DS / 10.0)) pointVectorPush(points, p);
+}
+
+ViewBox SVGParseViewBox(XMLNode* svgRoot)
+{
+    XMLAttribute* attr = XMLFindAttribute(svgRoot, "viewBox");
+    int           i    = 0;
+    double        args[4];
+    assert(parseNArgs(attr->val, &i, args, 4) == 4);
+    ViewBox vb;
+    vb.x = args[0];
+    vb.y = args[1];
+    vb.w = args[2];
+    vb.h = args[3];
+    return vb;
 }

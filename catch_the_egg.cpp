@@ -22,7 +22,6 @@ typedef struct {
 
 void resetAABB(AABB* a) { a->bl = {INFINITY, INFINITY}, a->tr = {-INFINITY, -INFINITY}; }
 int  insideAABB(AABB a, Point p) { return (a.bl.x <= p.x && p.x <= a.tr.x && a.bl.y <= p.y && p.y <= a.tr.y); }
-int  inRange(double x, double l, double r) { return l <= x && x <= r || l >= x && x >= r; }
 int  segmentInsideAABB(AABB a, Point p1, Point p2)
 {
     if (insideAABB(a, p2) || insideAABB(a, p1)) return 1;
@@ -318,12 +317,6 @@ Rope*     createRope(Vec p1, Vec p2, double Y, double A, double u, double length
         c->a[i] = {0, 0};
     return c;
 }
-Vec solveQuadratic(double a, double b, double c)
-{
-    double D = sqrt(b * b - 4 * a * c);
-    return {(-b + D) / (2 * a), (-b - D) / (2 * a)};
-}
-
 double measurePotential(Rope* c, int i)
 {
     Vec    dr  = sub(c->r[i + 1], c->r[i]);

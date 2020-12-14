@@ -56,6 +56,7 @@ double cross(Point p1, Point p2) { return p1.x * p2.y - p1.y * p2.x; }
 double dot(Point p1, Point p2) { return p1.x * p2.x + p1.y * p2.y; }
 double norm2(Point p) { return p.x * p.x + p.y * p.y; }
 double norm(Point p) { return sqrt(norm2(p)); }
+Point  unit(Point p) { return mul(p, 1 / norm(p)); }
 Point  rotate(Point p, double t, Point c)
 {
     return {(p.x - c.x) * cos(t) - (p.y - c.y) * sin(t) + c.x, (p.x - c.x) * sin(t) + (p.y - c.y) * cos(t) + c.y};
@@ -76,11 +77,30 @@ Point normal(Point p)
     double D = norm(p);
     return {-p.y / D, p.x / D};
 }
+Point normalu(Point p) { return {-p.y, p.x}; }
+
+Point reflect(Point p, Point c) { return sub(mul(c, 2), p); }
 
 Point pmin(Point p1, Point p2) { return {min(p1.x, p2.x), min(p1.y, p2.y)}; }
 Point pmax(Point p1, Point p2) { return {max(p1.x, p2.x), max(p1.y, p2.y)}; }
 Vec   normmax(Vec r1, Vec r2) { return norm(r1) > norm(r2) ? r1 : r2; }
 Vec   normmin(Vec r1, Vec r2) { return norm(r1) < norm(r2) ? r1 : r2; }
+
+double clamp(double x, double l, double r)
+{
+    if (x < l) x = l;
+    if (x > r) x = r;
+    return x;
+}
+
+int    inRange(double x, double l, double r) { return l <= x && x <= r || l >= x && x >= r; }
+double signedArea(Point p1, Point p2, Point p3)
+{
+    return ((p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)) / 2;
+}
+int left(Point a, Point b, Point c) { return signedArea(a, b, c) > 0; }
+int leftOn(Point a, Point b, Point c) { return signedArea(a, b, c) >= 0; }
+int collinear(Point a, Point b, Point c) { return fabs(signedArea(a, b, c)) < 1e-7; }
 
 Interval solveQuadratic(double a, double b, double c)
 {
@@ -114,10 +134,7 @@ static Point solveSimul(double a1, double b1, double c1, double a2, double b2, d
     p.y = (c1 * a2 - c2 * a1) / d;
     return p;
 }
-double signedArea(Point p1, Point p2, Point p3)
-{
-    return ((p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)) / 2;
-}
+
 // to prevent const to non-const str conversion warning
 void iText(double x, double y, const char* str, void* font = GLUT_BITMAP_8_BY_13)
 {

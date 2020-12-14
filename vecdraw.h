@@ -6,6 +6,165 @@
 #define RBTREE_REUSE_NODES
 #include "rbtree.h"
 
+typedef struct {
+    Point v[3];
+} Triangle;
+
+typedef struct _Vertex {
+    int             ear;
+    Point           v;
+    struct _Vertex* prev;
+    struct _Vertex* next;
+} Vertex;
+
+int isCCW(Point* p, int n)
+{
+    double a = 0.0;
+    // line integral apparantly
+    for (int i = 0; i < n; i++) {
+        int i1 = i, i2 = (i + 1) % n;
+        a += (p[i2].x - p[i1].x) * (p[i2].y + p[i1].y);
+    }
+    return a < 0;
+}
+
+void addVertex(Vertex** head, Point p)
+{
+
+    Vertex* v = (Vertex*)malloc(sizeof(Vertex));
+    v->ear    = 0;
+    v->v      = p;
+    if (*head) {
+        v->next       = *head;
+        v->prev       = (*head)->prev;
+        v->next->prev = v;
+        v->prev->next = v;
+    }
+    else {
+        *head   = v;
+        v->next = v->prev = v;
+    }
+}
+
+Vertex* createVertexList(Point* p, int n)
+{
+    Vertex* head = NULL;
+    if (isCCW(p, n)) {
+        for (int i = 0; i < n; i++)
+            addVertex(&head, p[i]);
+    }
+    else {
+        for (int i = n - 1; i >= 0; i--)
+            addVertex(&head, p[i]);
+    }
+    return head;
+}
+void freeVertexList(Vertex* v)
+{
+    if (!v) return;
+    Vertex *v1 = v->next, *v2;
+    while (v1 != v) {
+        v2 = v1;
+        v1 = v1->next;
+        free(v2);
+    }
+    free(v);
+}
+int inCone(Vertex* a, Vertex* b)
+{
+    Vertex* a0 = a->prev;
+    Vertex* a1 = a->next;
+    if (leftOn(a->v, a1->v, a0->v)) return left(a->v, b->v, a0->v) && left(b->v, a->v, a1->v);
+    return !(leftOn(a->v, b->v, a1->v) && leftOn(b->v, a->v, a0->v));
+}
+
+int between(Point c, Point a, Point b)
+{
+    if (!collinear(a, b, c)) return 0;
+    if (fabs(a.x - b.x) < 1e-7) inRange(c.y, a.y, b.y);
+    return inRange(c.x, a.x, b.x);
+}
+
+int intersectsProper(Point a, Point b, Point c, Point d)
+{
+    return (signedArea(a, b, c) * signedArea(a, b, d) < 0) && (signedArea(c, d, a) * signedArea(c, d, b) < 0);
+}
+int intersects(Point a, Point b, Point c, Point d)
+{
+    if (intersectsProper(a, b, c, d)) return 1;
+    return between(c, a, b) || between(d, a, b) || between(a, c, d) || between(b, c, d);
+}
+
+int isDiagonal(Vertex* vertices, Vertex* a, Vertex* b)
+{
+    if (!inCone(a, b) || !inCone(b, a)) return 0;
+    Vertex *v1 = vertices, *v2;
+    do {
+        v2 = v1->next;
+        if (!(v1 == a || v1 == b || v2 == a || v2 == b) && intersects(a->v, b->v, v1->v, v2->v)) return 0;
+        v1 = v1->next;
+    } while (v1 != vertices);
+    return 1;
+}
+void checkEars(Vertex* vertices)
+{
+    Vertex *v0, *v1, *v2;
+    v1 = vertices;
+    do {
+        v0      = v1->prev;
+        v2      = v1->next;
+        v1->ear = isDiagonal(vertices, v0, v2);
+        v1      = v1->next;
+    } while (v1 != vertices);
+}
+
+Triangle* triangulate(Point* points, int n, int* j)
+{
+    Vertex* vertices = createVertexList(points, n);
+    Vertex *v0, *v1, *v2;
+    checkEars(vertices);
+    Triangle* t = (Triangle*)malloc(sizeof(Triangle) * (n - 2));
+    int       k = 0;
+    while (n > 3) {
+        v1      = vertices;
+        int ear = 0;
+        do {
+            if (v1->ear) {
+                ear      = 1;
+                v0       = v1->prev;
+                v2       = v1->next;
+                t[k++]   = {.v = {v0->v, v1->v, v2->v}};
+                v0->ear  = isDiagonal(vertices, v0->prev, v2);
+                v2->ear  = isDiagonal(vertices, v0, v2->next);
+                v0->next = v2;
+                v2->prev = v0;
+                vertices = v2;
+                n--;
+                // printf("%d\n", n);
+                free(v1);
+                break;
+            }
+            v1 = v1->next;
+        } while (v1 != vertices);
+        if (!ear) { break; }
+    }
+    t[k++] = {.v = {vertices->prev->v, vertices->v, vertices->next->v}};
+    *j     = k;
+    freeVertexList(vertices);
+    // assert(k == (n - 2));
+    // printf("finished triangulating\n");
+    return t;
+}
+
+void drawTriangle(Triangle t)
+{
+    glBegin(GL_POLYGON);
+    glVertex2f(t.v[0].x, t.v[0].y);
+    glVertex2f(t.v[1].x, t.v[1].y);
+    glVertex2f(t.v[2].x, t.v[2].y);
+    glEnd();
+}
+
 #define MAX_WIDTH 4096
 typedef struct {
     double mat[3][3];
@@ -190,10 +349,51 @@ void freePath(Path* path)
     free(path->edges);
     free(path);
 }
+
+typedef struct {
+    Point tl, tr;
+    Point bl, br;
+} Trapezoid;
+
+void drawTrapezoid(Trapezoid t)
+{
+    glBegin(GL_POLYGON);
+    glVertex2f(t.bl.x, t.bl.y);
+    glVertex2f(t.br.x, t.br.y);
+    glVertex2f(t.tr.x, t.tr.y);
+    glVertex2f(t.tl.x, t.tl.y);
+    glEnd();
+}
+
 void strokePath(Path* path)
 {
+    if (path->n_points < 2) return;
     iSetColorEx(path->stroke.color.r, path->stroke.color.g, path->stroke.color.b, path->stroke.opacity);
-    iPath(path->points, path->n_points, path->stroke.width, path->closed);
+    Point     p1;
+    Point     p2 = path->points[0];
+    Trapezoid t;
+    Vec       dr1, dr2, u1, u2, d1, d2;
+    double    m, n;
+    double    d = path->stroke.width / 2;
+    for (int i = 0; i <= path->n_points + 1; i++) {
+        p1  = p2;
+        p2  = path->points[(i + 1) % path->n_points];
+        dr1 = dr2;
+        dr2 = sub(p2, p1);
+        if ((m = norm(dr2)) < 1e-5) continue;
+        dr2 = mul(dr2, 1 / m);
+        u1  = u2;
+        u2  = normalu(dr2);
+        m   = clamp(dot(u1, u2), -1, 1);
+        m   = sqrt((1 - m) / (1 + m));
+        n   = 1.0;
+        if (fabs(m + 1) < 1e-5) n = 0, m = 1.0;
+        t.tl = t.tr;
+        t.bl = t.br;
+        t.tr = add(p1, add(mul(u1, n * d), mul(dr1, m * d)));
+        t.br = reflect(t.tr, p1);
+        if (i > 1) drawTrapezoid(t);
+    }
 }
 
 void fillPath(Path* path)
@@ -235,11 +435,21 @@ void fillPath(Path* path)
     RBTreeClear(activeEdges);
 }
 
+void fillPath_(Path* path)
+{
+    iSetColorEx(path->fill.color.r, path->fill.color.g, path->fill.color.b, path->fill.opacity);
+    int       k;
+    Triangle* t = triangulate(path->points, path->n_points, &k);
+    for (int i = 0; i < k; i++)
+        drawTriangle(t[i]);
+    free(t);
+}
+
 void renderPath(Path* path, TransformMat mat)
 {
     static int f = 1;
     applyTransform(mat, path);
-    if (path->fill.fill) fillPath(path);
+    if (path->fill.fill) fillPath_(path);
     if (path->stroke.width > 0.1) strokePath(path);
 }
 
