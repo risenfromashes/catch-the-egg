@@ -46,7 +46,7 @@ RBNode* RBTreeFind(RBTree* tree, void* key);
 RBNode* RBTreeInsert(RBTree* tree, void* value);
 void    RBTreeDelete(RBTree* tree, RBNode* z);
 void    RBTreeClear(RBTree* tree);
-void    RBTreeFree(RBTree* tree);
+void    RBTreeFree(RBTree* tree, int free_value);
 
 static RBNode _RBNullNode;
 RBNode*       _RBNull() { return &_RBNullNode; }
@@ -318,25 +318,25 @@ void RBNodeClear(RBTree* tree, RBNode* z)
 }
 void RBTreeClear(RBTree* tree) { RBNodeClear(tree, tree->root); }
 
-void RBNodeFree(RBTree* tree, RBNode* z)
+void RBNodeFree(RBTree* tree, RBNode* z, int free_value)
 {
     if (z == RBNull) return;
-    RBNodeFree(tree, z->left);
-    RBNodeFree(tree, z->right);
+    RBNodeFree(tree, z->left, free_value);
+    RBNodeFree(tree, z->right, free_value);
     if (z == tree->root) tree->root = RBNull;
-    free(z->value);
+    if (free_value) free(z->value);
     free(z);
 }
-void RBTreeFree(RBTree* tree)
+void RBTreeFree(RBTree* tree, int free_value)
 {
 #ifdef RBTREE_REUSE_NODES
     RBNode *x = tree->recycleNodes, *y;
     while (x != NULL) {
         y = x;
         x = x->right;
-        free(y->value);
+        if (free_value) free(y->value);
         free(y);
     }
 #endif
-    RBNodeFree(tree, tree->root);
+    RBNodeFree(tree, tree->root, free_value);
 }

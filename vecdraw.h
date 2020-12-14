@@ -17,6 +17,100 @@ typedef struct _Vertex {
     struct _Vertex* next;
 } Vertex;
 
+typedef struct {
+    double mat[3][3];
+} TransformMat;
+
+typedef struct {
+    unsigned char r, g, b;
+} Color;
+
+typedef struct {
+    double x1, y1, x2, y2;
+    double m; // yslope
+} Edge;
+
+typedef struct {
+    unsigned char fill;
+    Color         color;
+    float         opacity;
+} Fill;
+
+typedef struct {
+    float width;
+    Color color;
+    float opacity;
+} Stroke;
+
+typedef struct {
+    Fill      fill;
+    Stroke    stroke;
+    Point*    points;
+    Triangle* strokes;
+    Triangle* fills;
+    int       n_points;
+    int       n_fills;
+    int       n_strokes;
+    int       closed;
+} Path;
+
+typedef struct {
+    int    n, capacity;
+    Point* p;
+} PointVector;
+
+int isCCW(Point* p, int n);
+
+void addVertex(Vertex** head, Point p);
+
+Vertex* createVertexList(Point* p, int n);
+void    freeVertexList(Vertex* v);
+int     inCone(Vertex* a, Vertex* b);
+
+int between(Point c, Point a, Point b);
+
+int intersectsProper(Point a, Point b, Point c, Point d);
+int intersects(Point a, Point b, Point c, Point d);
+
+int  isDiagonal(Vertex* vertices, Vertex* a, Vertex* b);
+void checkEars(Vertex* vertices);
+
+Triangle* triangulate(Point* points, int n, int* j);
+Triangle* triangulateStroke(Point* points, int N, double d, int* j);
+
+void drawTriangle(Triangle t, TransformMat mat);
+
+TransformMat identity();
+
+TransformMat matMul(TransformMat m1, TransformMat m2);
+TransformMat rotateOrginMat(double rad);
+TransformMat translateMat(Point d);
+TransformMat rotateMat(double rad, Point c);
+TransformMat skewMat(double radX, double radY);
+TransformMat scaleMat(Point s);
+Point        transform(TransformMat m, Point p);
+Triangle     transformTriangle(TransformMat m, Triangle t);
+
+void applyTransform(TransformMat mat, Path* path);
+
+void  applyLocalTransform(TransformMat mat, Path* path);
+Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int closed);
+
+Path* duplicatePath(Path* from);
+void  freePath(Path* path);
+
+void strokePath(Path* path, TransformMat mat);
+
+void fillPath(Path* path, TransformMat mat);
+
+void renderPath(Path* path, TransformMat mat);
+
+PointVector* createPointVector();
+void         pointVectorPush(PointVector* pvec, Point p);
+
+Point pointVectorBack(PointVector* pvec);
+Point pointVectorFront(PointVector* pvec);
+
 int isCCW(Point* p, int n)
 {
     double a = 0.0;
@@ -151,24 +245,51 @@ Triangle* triangulate(Point* points, int n, int* j)
     t[k++] = {.v = {vertices->prev->v, vertices->v, vertices->next->v}};
     *j     = k;
     freeVertexList(vertices);
-    // assert(k == (n - 2));
-    // printf("finished triangulating\n");
+    return t;
+}
+Triangle* triangulateStroke(Point* points, int N, double d, int* j)
+{
+    Triangle* t = (Triangle*)malloc(sizeof(Triangle) * 2 * N);
+    Point     p1;
+    Point     p2 = points[0];
+    Triangle  t1, t2;
+    Vec       dr1, dr2, u1, u2, d1, d2;
+    double    m, n;
+    d /= 2;
+    int k = 0;
+    for (int i = 0; i <= N + 1; i++) {
+        p1  = p2;
+        p2  = points[(i + 1) % N];
+        dr1 = dr2;
+        dr2 = sub(p2, p1);
+        if ((m = norm(dr2)) < 1e-5) continue;
+        dr2 = mul(dr2, 1 / m);
+        u1  = u2;
+        u2  = normalu(dr2);
+        m   = clamp(dot(u1, u2), -1, 1);
+        m   = sqrt((1 - m) / (1 + m));
+        n   = 1.0;
+        if (fabs(m + 1) < 1e-5) n = 0, m = 1.0;
+        t1.v[0] = t2.v[0];
+        t1.v[1] = t2.v[1];
+        t1.v[2] = t2.v[0] = add(p1, add(mul(u1, n * d), mul(dr1, m * d)));
+        t2.v[1]           = reflect(t2.v[0], p1);
+        t2.v[2]           = t1.v[1];
+        if (i > 1) t[k++] = t1, t[k++] = t2;
+    }
+    *j = k;
     return t;
 }
 
-void drawTriangle(Triangle t)
+void drawTriangle(Triangle t, TransformMat mat)
 {
     glBegin(GL_POLYGON);
+    t = transformTriangle(mat, t);
     glVertex2f(t.v[0].x, t.v[0].y);
     glVertex2f(t.v[1].x, t.v[1].y);
     glVertex2f(t.v[2].x, t.v[2].y);
     glEnd();
 }
-
-#define MAX_WIDTH 4096
-typedef struct {
-    double mat[3][3];
-} TransformMat;
 
 TransformMat identity()
 {
@@ -229,234 +350,82 @@ Point transform(TransformMat m, Point p)
 {
     return {m.mat[0][0] * p.x + m.mat[0][1] * p.y + m.mat[0][2], m.mat[1][0] * p.x + m.mat[1][1] * p.y + m.mat[1][2]};
 }
-typedef struct {
-    unsigned char r, g, b;
-} Color;
 
-typedef struct {
-    double x1, y1, x2, y2;
-    double m; // yslope
-} Edge;
-
-// compare by y cord
-int EdgeCompMinY(const void* p1, const void* p2)
+Triangle transformTriangle(TransformMat m, Triangle t)
 {
-    Edge *e1 = (Edge*)p1, *e2 = (Edge*)p2;
-    if (fabs(e1->y1 - e2->y1) < 1e-8)
-        return 0;
-    else if (e1->y1 < e2->y1)
-        return -1;
-    else
-        return 1;
-}
-
-int EdgeCompMaxY(const void* p1, const void* p2)
-{
-    Edge *e1 = (Edge*)p1, *e2 = (Edge*)p2;
-    if (fabs(e1->y2 - e2->y2) < 1e-8)
-        return 0;
-    else if (e1->y2 < e2->y2)
-        return -1;
-    else
-        return 1;
-}
-
-typedef struct {
-    unsigned char fill;
-    Color         color;
-    float         opacity;
-} Fill;
-
-typedef struct {
-    float width;
-    Color color;
-    float opacity;
-} Stroke;
-
-typedef struct {
-    Fill   fill;
-    Stroke stroke;
-    Point* init_points;
-    Point* points;
-    int    n_points;
-    int    closed;
-    Edge*  edges;
-    double x_min, x_max;
-    double y_min, y_max;
-} Path;
-
-void applyTransform(TransformMat mat, Path* path)
-{
-    for (int i = 0; i < path->n_points; i++)
-        path->points[i] = transform(mat, path->init_points[i]);
-    path->x_min = INFINITY, path->x_max = -INFINITY;
-    path->y_min = INFINITY, path->y_max = -INFINITY;
-    for (int i = 0; i < path->n_points; i++) {
-        Point p1 = path->points[i], p2 = path->points[(i + 1) % path->n_points];
-        path->x_min = min(path->x_min, p1.x);
-        path->x_max = max(path->x_max, p1.x);
-        path->y_min = min(path->y_min, p1.y);
-        path->y_max = max(path->y_max, p1.y);
-        double m    = (p1.x - p2.x) / (p1.y - p2.y);
-        if (p1.y < p2.y)
-            path->edges[i] = {.x1 = p1.x, .y1 = p1.y, .x2 = p2.x, .y2 = p2.y, .m = m};
-        else
-            path->edges[i] = {.x1 = p2.x, .y1 = p2.y, .x2 = p1.x, .y2 = p1.y, .m = m};
-    }
-    qsort(path->edges, path->n_points, sizeof(Edge), EdgeCompMinY);
+    for (int i = 0; i < 3; i++)
+        t.v[i] = transform(m, t.v[i]);
+    return t;
 }
 
 void applyLocalTransform(TransformMat mat, Path* path)
 {
     for (int i = 0; i < path->n_points; i++)
-        path->init_points[i] = transform(mat, path->init_points[i]);
-    applyTransform(identity(), path);
+        path->points[i] = transform(mat, path->points[i]);
+    path->strokes = triangulateStroke(path->points, path->n_points, path->stroke.width, &path->n_strokes);
+    path->fills   = triangulate(path->points, path->n_points, &path->n_fills);
 }
 
 Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int closed)
 {
-    Path* path        = (Path*)malloc(sizeof(Path));
-    path->fill        = fill;
-    path->stroke      = stroke;
-    path->init_points = points;
-    path->n_points    = n_points;
-    path->closed      = closed;
-    path->points      = (Point*)malloc(sizeof(Point) * n_points);
-    path->edges       = (Edge*)malloc(sizeof(Edge) * n_points);
-    applyTransform(identity(), path);
+    Path* path     = (Path*)malloc(sizeof(Path));
+    path->fill     = fill;
+    path->stroke   = stroke;
+    path->points   = points;
+    path->n_points = n_points;
+    path->closed   = closed;
+    path->strokes  = triangulateStroke(path->points, path->n_points, path->stroke.width, &path->n_strokes);
+    path->fills    = triangulate(path->points, path->n_points, &path->n_fills);
     return path;
 }
 
 Path* duplicatePath(Path* from)
 {
-    Path* path        = (Path*)malloc(sizeof(Path));
-    path->fill        = from->fill;
-    path->stroke      = from->stroke;
-    path->n_points    = from->n_points;
-    path->closed      = from->closed;
-    path->init_points = (Point*)malloc(sizeof(Point) * path->n_points);
-    memcpy(path->init_points, from->init_points, path->n_points * sizeof(Point));
-    path->points = (Point*)malloc(sizeof(Point) * path->n_points);
-    path->edges  = (Edge*)malloc(sizeof(Edge) * path->n_points);
-    applyTransform(identity(), path);
+    Path* path      = (Path*)malloc(sizeof(Path));
+    path->fill      = from->fill;
+    path->stroke    = from->stroke;
+    path->n_points  = from->n_points;
+    path->n_strokes = from->n_strokes;
+    path->n_fills   = from->n_fills;
+    path->closed    = from->closed;
+    path->points    = (Point*)malloc(sizeof(Point) * path->n_points);
+    path->strokes   = (Triangle*)malloc(sizeof(Triangle) * path->n_strokes);
+    path->fills     = (Triangle*)malloc(sizeof(Triangle) * path->n_fills);
+    memcpy(path->points, from->points, sizeof(Point) * path->n_points);
+    memcpy(path->strokes, from->strokes, sizeof(Triangle) * path->n_strokes);
+    memcpy(path->fills, from->fills, sizeof(Triangle) * path->n_fills);
     return path;
 }
 
 void freePath(Path* path)
 {
-    free(path->init_points);
     free(path->points);
-    free(path->edges);
+    free(path->fills);
+    free(path->strokes);
     free(path);
 }
 
-typedef struct {
-    Point tl, tr;
-    Point bl, br;
-} Trapezoid;
-
-void drawTrapezoid(Trapezoid t)
-{
-    glBegin(GL_POLYGON);
-    glVertex2f(t.bl.x, t.bl.y);
-    glVertex2f(t.br.x, t.br.y);
-    glVertex2f(t.tr.x, t.tr.y);
-    glVertex2f(t.tl.x, t.tl.y);
-    glEnd();
-}
-
-void strokePath(Path* path)
+void strokePath(Path* path, TransformMat mat)
 {
     if (path->n_points < 2) return;
     iSetColorEx(path->stroke.color.r, path->stroke.color.g, path->stroke.color.b, path->stroke.opacity);
-    Point     p1;
-    Point     p2 = path->points[0];
-    Trapezoid t;
-    Vec       dr1, dr2, u1, u2, d1, d2;
-    double    m, n;
-    double    d = path->stroke.width / 2;
-    for (int i = 0; i <= path->n_points + 1; i++) {
-        p1  = p2;
-        p2  = path->points[(i + 1) % path->n_points];
-        dr1 = dr2;
-        dr2 = sub(p2, p1);
-        if ((m = norm(dr2)) < 1e-5) continue;
-        dr2 = mul(dr2, 1 / m);
-        u1  = u2;
-        u2  = normalu(dr2);
-        m   = clamp(dot(u1, u2), -1, 1);
-        m   = sqrt((1 - m) / (1 + m));
-        n   = 1.0;
-        if (fabs(m + 1) < 1e-5) n = 0, m = 1.0;
-        t.tl = t.tr;
-        t.bl = t.br;
-        t.tr = add(p1, add(mul(u1, n * d), mul(dr1, m * d)));
-        t.br = reflect(t.tr, p1);
-        if (i > 1) drawTrapezoid(t);
-    }
+    for (int i = 0; i < path->n_strokes; i++)
+        drawTriangle(path->strokes[i], mat);
 }
 
-void fillPath(Path* path)
+void fillPath(Path* path, TransformMat mat)
 {
+    if (path->n_points < 3) return;
     iSetColorEx(path->fill.color.r, path->fill.color.g, path->fill.color.b, path->fill.opacity);
-    static RBTree* activeEdges = createRBTree(EdgeCompMaxY);
-    int            intersections[MAX_WIDTH + 5];
-    double         width  = iScreenWidth;
-    double         height = iScreenHeight;
-    double         x_min = max(0, path->x_min), x_max = min(width, ceil(path->x_max));
-    double         y_min = max(0, path->y_min), y_max = min(height, ceil(path->y_max));
-    int            k = 0;
-    for (int y = y_min; y <= y_max; y++) {
-        while (k < path->n_points && (int)round(path->edges[k].y1) <= y)
-            RBTreeInsert(activeEdges, &path->edges[k++]);
-        RBNode *max = RBTreeMax(activeEdges), *max_;
-        while (max != RBNull && (int)round(RBValue(max, Edge).y2) < y) {
-            max_ = max;
-            max  = RBNodePrev(max);
-            RBTreeDelete(activeEdges, max_);
-        }
-        for (int x = x_min, c = 0; x <= x_max; x++)
-            intersections[x] = 0;
-        for (RBNode* n = RBTreeMin(activeEdges); n != RBNull; n = RBNodeNext(n)) {
-            Edge* e = RBPointer(n, Edge);
-            int   x = round(e->x1 + e->m * (y - e->y1));
-            if (x >= 0 && x <= width) intersections[x]++;
-        }
-        double x1, x2;
-        for (int x = x_min, c = 0, c0; x <= x_max; x++)
-            if (intersections[x]) {
-                c0 = c;
-                c += intersections[x];
-                x1 = x2;
-                x2 = x;
-                if (c0 % 2) iLine(x1, y, x2, y);
-            }
-    }
-    RBTreeClear(activeEdges);
-}
-
-void fillPath_(Path* path)
-{
-    iSetColorEx(path->fill.color.r, path->fill.color.g, path->fill.color.b, path->fill.opacity);
-    int       k;
-    Triangle* t = triangulate(path->points, path->n_points, &k);
-    for (int i = 0; i < k; i++)
-        drawTriangle(t[i]);
-    free(t);
+    for (int i = 0; i < path->n_fills; i++)
+        drawTriangle(path->fills[i], mat);
 }
 
 void renderPath(Path* path, TransformMat mat)
 {
-    static int f = 1;
-    applyTransform(mat, path);
-    if (path->fill.fill) fillPath_(path);
-    if (path->stroke.width > 0.1) strokePath(path);
+    if (path->fill.fill) fillPath(path, mat);
+    if (path->stroke.width > 0.1) strokePath(path, mat);
 }
-
-typedef struct {
-    int    n, capacity;
-    Point* p;
-} PointVector;
 
 PointVector* createPointVector()
 {

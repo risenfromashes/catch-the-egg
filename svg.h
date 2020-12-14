@@ -368,7 +368,7 @@ void XMLFreeNode(XMLNode* node)
         z = z->next;
         XMLFreeNode(y);
     }
-    RBTreeFree(node->attributes);
+    RBTreeFree(node->attributes, 1);
     if (node->value) free(node->value);
     free(node);
 }
@@ -389,6 +389,7 @@ SVGPathGroup* SVGParse(const char* filePath)
     assert(strcmp(root->tagName, "svg") == 0);
     SVGPathGroup* ret = SVGParseGroup(NULL, idd, root, identity());
     XMLFreeNode(root);
+    RBTreeFree(idd, 0);
     free(buf);
     return ret;
 }
@@ -838,7 +839,6 @@ SVGPathGroup* SVGParseGroup(SVGPathGroup* parent, RBTree* idd, XMLNode* node, Tr
                 Path* path = (Path*)node->value;
                 path       = duplicatePath(path);
                 applyLocalTransform(mat, path);
-                printf("%d\n", path->n_points);
                 g->child = path;
             } break;
         }
@@ -854,7 +854,6 @@ void renderSVGPathGroup(SVGPathGroup* g, TransformMat mat)
                 renderSVGPathGroup(c, mat);
         }
         else if (g->child) {
-            // printf("rendering something:/\n");
             renderPath((Path*)g->child, mat);
         }
     }
