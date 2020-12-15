@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "vecdraw.h"
+#define RBTREE_DONOT_COPY_VALUES
+#include "rbtree.h"
 
 #define SVG_DS 5
 
@@ -61,8 +63,8 @@ typedef struct _XMLNode {
 } XMLNode;
 
 typedef struct {
-    double x, y, w, h;
-} ViewBox;
+    Point min, max;
+} SVGViewBox;
 
 int           XMLAttributeComp(const void* p1, const void* p2);
 int           XMLNodeComp(const void* p1, const void* p2);
@@ -93,7 +95,7 @@ Path*        SVGParseRect(XMLNode* node);
 Path*        SVGParseCircle(XMLNode* node);
 Path*        SVGParseEllipse(XMLNode* node);
 void         SVGAddPoint(PointVector* points, Point p);
-ViewBox      SVGParseViewBox(XMLNode* svgRoot);
+SVGViewBox   SVGParseViewBox(XMLNode* svgRoot);
 
 typedef struct _SVGPathGroup {
     const char*           id;
@@ -103,7 +105,14 @@ typedef struct _SVGPathGroup {
     struct _SVGPathGroup* next;
 } SVGPathGroup;
 
-SVGPathGroup* SVGParse(const char* filePath);
+typedef struct {
+    SVGViewBox    viewBox;
+    SVGPathGroup* pathGroup;
+} SVGObject;
+
+TransformMat  SVGHReflectMat(SVGObject* s);
+TransformMat  SVGVReflectMat(SVGObject* s);
+SVGObject*    SVGParse(const char* filePath);
 XMLNode*      SVGGetUseRef(XMLNode* node, RBTree* idd);
 SVGPathGroup* SVGParseGroup(SVGPathGroup* parent, RBTree* idd, XMLNode* node, TransformMat mat);
 
@@ -372,8 +381,15 @@ void XMLFreeNode(XMLNode* node)
     if (node->value) free(node->value);
     free(node);
 }
-
-SVGPathGroup* SVGParse(const char* filePath)
+TransformMat SVGHReflectMat(SVGObject* s)
+{
+    return matMul(translateMat({s->viewBox.min.x + s->viewBox.max.x, 0}), scaleMat({-1, 1}));
+}
+TransformMat SVGVReflectMat(SVGObject* s)
+{
+    return matMul(translateMat({0, s->viewBox.min.y + s->viewBox.max.y}), scaleMat({1, -1}));
+}
+SVGObject* SVGParse(const char* filePath)
 {
     FILE* file = fopen(filePath, "r");
     assert(file && "File doesn't exit");
@@ -387,7 +403,9 @@ SVGPathGroup* SVGParse(const char* filePath)
     RBTree*  idd  = createRBTree(XMLNodeComp);
     XMLNode* root = XMLParseNode(NULL, idd, buf, &i);
     assert(strcmp(root->tagName, "svg") == 0);
-    SVGPathGroup* ret = SVGParseGroup(NULL, idd, root, identity());
+    SVGObject* ret = (SVGObject*)malloc(sizeof(SVGObject));
+    ret->viewBox   = SVGParseViewBox(root);
+    ret->pathGroup = SVGParseGroup(NULL, idd, root, SVGVReflectMat(ret));
     XMLFreeNode(root);
     RBTreeFree(idd, 0);
     free(buf);
@@ -859,21 +877,23 @@ void renderSVGPathGroup(SVGPathGroup* g, TransformMat mat)
     }
 }
 
+void renderSVGObject(SVGObject* s, TransformMat mat) { renderSVGPathGroup(s->pathGroup, mat); }
+
 void SVGAddPoint(PointVector* points, Point p)
 {
     if (points->n == 0 || norm(sub(pointVectorBack(points), p)) > (SVG_DS / 10.0)) pointVectorPush(points, p);
 }
 
-ViewBox SVGParseViewBox(XMLNode* svgRoot)
+SVGViewBox SVGParseViewBox(XMLNode* svgRoot)
 {
     XMLAttribute* attr = XMLFindAttribute(svgRoot, "viewBox");
     int           i    = 0;
     double        args[4];
     assert(parseNArgs(attr->val, &i, args, 4) == 4);
-    ViewBox vb;
-    vb.x = args[0];
-    vb.y = args[1];
-    vb.w = args[2];
-    vb.h = args[3];
+    SVGViewBox vb;
+    vb.min.x = args[0];
+    vb.min.y = args[1];
+    vb.max.x = args[2] + vb.min.x;
+    vb.max.y = args[3] + vb.min.y;
     return vb;
 }

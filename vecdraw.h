@@ -2,9 +2,6 @@
 
 #include "stdio.h"
 #include "ext.h"
-#define RBTREE_DONOT_COPY_VALUES
-#define RBTREE_REUSE_NODES
-#include "rbtree.h"
 
 typedef struct {
     Point v[3];
@@ -362,6 +359,8 @@ void applyLocalTransform(TransformMat mat, Path* path)
 {
     for (int i = 0; i < path->n_points; i++)
         path->points[i] = transform(mat, path->points[i]);
+    free(path->strokes);
+    free(path->fills);
     path->strokes = triangulateStroke(path->points, path->n_points, path->stroke.width, &path->n_strokes);
     path->fills   = triangulate(path->points, path->n_points, &path->n_fills);
 }
