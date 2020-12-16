@@ -436,9 +436,23 @@ void resizeFF(int width, int height)
     glutPostRedisplay();
 }
 
+void iKeyboardUp(unsigned char key);
+void iSpecialKeyboardUp(unsigned char key);
+
+void keyboardHandler3FF(unsigned char key, int x, int y)
+{
+    iKeyboardUp(key);
+    glutPostRedisplay();
+}
+void keyboardHandler4FF(int key, int x, int y)
+{
+    iSpecialKeyboardUp(key);
+    glutPostRedisplay();
+}
+
 // enables MSAA, glBlending for transparency
 // also adds resize and passive mouse movement callbacks
-void iInitializeEx(int width = 500, int height = 500, const char* title = "iGraphics")
+void iInitializeEx(int width = 500, int height = 500, int gameMode = 0, const char* title = "iGraphics")
 {
 
     iScreenHeight = height;
@@ -458,7 +472,13 @@ void iInitializeEx(int width = 500, int height = 500, const char* title = "iGrap
 
     glutInitWindowSize(width, height);
     glutInitWindowPosition(10, 10);
-    glutCreateWindow(title);
+    if (!gameMode)
+        glutCreateWindow(title);
+    else {
+        glutGameModeString("1280x720");
+        glutEnterGameMode();
+        glutSetCursor(GLUT_CURSOR_NONE);
+    }
     glClearColor(0.0, 0.0, 0.0, 0.0);
 
     glMatrixMode(GL_PROJECTION);
@@ -466,9 +486,11 @@ void iInitializeEx(int width = 500, int height = 500, const char* title = "iGrap
     glOrtho(0.0, width, 0.0, height, -1.0, 1.0);
 
     glutDisplayFunc(displayFF);
-    glutReshapeFunc(resizeFF);            // added resize callback
-    glutKeyboardFunc(keyboardHandler1FF); // normal
-    glutSpecialFunc(keyboardHandler2FF);  // special keys
+    glutReshapeFunc(resizeFF);              // added resize callback
+    glutKeyboardFunc(keyboardHandler1FF);   // normal
+    glutSpecialFunc(keyboardHandler2FF);    // special keys
+    glutKeyboardUpFunc(keyboardHandler3FF); // normal up
+    glutSpecialUpFunc(keyboardHandler4FF);  // special keys up
     glutMouseFunc(mouseHandlerFF);
     glutPassiveMotionFunc(mousePassiveMoveHandlerFF); // added passive mouse move callback
     glutMotionFunc(mouseMoveHandlerFF);

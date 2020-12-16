@@ -4,50 +4,27 @@
 #define FLYING_FRAMES   30
 #define FLIPPING_FRAMES 15
 
-void findMinBounds(SVGPathGroup* g, TransformMat mat, Point* min, Point* max)
-{
-    if (!g->hidden) {
-        if (g->isGroup) {
-            for (SVGPathGroup* c = (SVGPathGroup*)g->child; c; c = c->next)
-                findMinBounds(c, mat, min, max);
-        }
-        else if (g->child) {
-            Path* path = (Path*)g->child;
-            for (int i = 0; i < path->n_points; i++) {
-                Point p = transform(mat, path->points[i]);
-                *min    = pmin(*min, p);
-                *max    = pmax(*max, p);
-            }
-        }
-    }
-}
-
-void minBounds(SVGObject* s, TransformMat mat)
-{
-    s->viewBox.min = {INFINITY, INFINITY};
-    s->viewBox.max = neg(s->viewBox.min);
-    findMinBounds(s->pathGroup, mat, &s->viewBox.min, &s->viewBox.max);
-}
+SVGObject*   ChickenFlight[FLYING_FRAMES];
+SVGObject*   ChickenFlip[FLIPPING_FRAMES];
+SVGObject*   ChickenStill;
+TransformMat ChickenLocalMat;
+TransformMat ChickenReflectMat;
 
 typedef struct _Chicken {
-    SVGObject*   still;
-    SVGObject*   flying[FLYING_FRAMES];
-    SVGObject*   flipping[FLIPPING_FRAMES];
-    Rope*        rope;
-    int          rope_pos, next_pos;
-    double       altitude;
-    double       mass;
-    int          flipped;
-    int          inFlip;
-    int          inFlight;
-    int          wouldFly;
-    double       flip_t;
-    double       flip_T;
-    double       flight_t;
-    double       flight_T;
-    Point        flight_start_p;
-    Point        flight_peak;
-    TransformMat localTransform, reflectTransform;
+    Rope*  rope;
+    int    rope_pos, next_pos;
+    double altitude;
+    double mass;
+    int    flipped;
+    int    inFlip;
+    int    inFlight;
+    int    wouldFly;
+    double flip_t;
+    double flip_T;
+    double flight_t;
+    double flight_T;
+    Point  flight_start_p;
+    Point  flight_peak;
 } Chicken;
 
 Chicken* createChicken(double altitude);
@@ -56,33 +33,45 @@ void     drawChicken(Chicken* chicken);
 void     flyChicken(Chicken* chicken);
 void     flipChicken(Chicken* chicken);
 
+void loadChickenAssets()
+{
+    char path[64];
+    for (int i = 0; i < FLYING_FRAMES; i++) {
+        sprintf(path, "assets/flying/chickenflight_%d.svg", i + 1);
+        ChickenFlight[i] = SVGParse(path);
+    }
+    for (int i = 0; i < FLIPPING_FRAMES; i++) {
+        sprintf(path, "assets/flipping/chickenflip_%d.svg", i + 1);
+        ChickenFlip[i] = SVGParse(path);
+    }
+    ChickenStill    = ChickenFlight[0];
+    ChickenLocalMat = scaleMat({0.175, 0.175});
+    SVGMinBounds(ChickenStill, ChickenLocalMat);
+    ChickenLocalMat   = matMul(translateMat(neg(ChickenStill->viewBox.min)), ChickenLocalMat);
+    ChickenReflectMat = matMul(translateMat({ChickenStill->viewBox.max.x, 0}), scaleMat({-1, 1}));
+}
+
+void initRope(Chicken* chicken)
+{
+    chicken->rope     = createRope({0, chicken->altitude}, {1280, chicken->altitude}, 2e9, 5e-5, 5.75e-8, -1, 100);
+    chicken->rope_pos = 5 + rand() % (chicken->rope->n - 10);
+    chicken->rope->ext_forces[chicken->rope_pos] =
+        chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, -chicken->mass * g / 2};
+    for (int i = 0; i < 500; i++)
+        updateRope(chicken->rope);
+}
+
 Chicken* createChicken(double altitude)
 {
     srand((unsigned int)time(NULL));
     Chicken* chicken  = (Chicken*)malloc(sizeof(Chicken));
     chicken->altitude = altitude;
-    char path[64];
-    for (int i = 0; i < FLYING_FRAMES; i++) {
-        sprintf(path, "assets/flying/chickenflight_%d.svg", i + 1);
-        chicken->flying[i] = SVGParse(path);
-    }
-    for (int i = 0; i < FLIPPING_FRAMES; i++) {
-        sprintf(path, "assets/flipping/chickenflip_%d.svg", i + 1);
-        chicken->flipping[i] = SVGParse(path);
-    }
-    chicken->still    = chicken->flying[0];
+    ChickenStill      = ChickenFlight[0];
     chicken->wouldFly = chicken->flipped = chicken->inFlip = chicken->inFlight = 0;
-    chicken->localTransform                                                    = scaleMat({0.175, 0.175});
-    minBounds(chicken->still, chicken->localTransform);
-    chicken->localTransform   = matMul(translateMat(neg(chicken->still->viewBox.min)), chicken->localTransform);
-    chicken->reflectTransform = matMul(translateMat({chicken->still->viewBox.max.x, 0}), scaleMat({-1, 1}));
-    chicken->rope             = createRope({0, altitude}, {1280, altitude}, 2e9, 5e-5, 5.75e-8, -1, 100);
-    chicken->flight_T         = 0.75;
-    chicken->flip_T           = 0.1;
-    chicken->mass             = 0.5;
-    chicken->rope_pos         = 5 + rand() % (chicken->rope->n - 10);
-    chicken->rope->ext_forces[chicken->rope_pos] =
-        chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, -chicken->mass * g / 2};
+    chicken->flight_T                                                          = 0.75;
+    chicken->flip_T                                                            = 0.1;
+    chicken->mass                                                              = 0.5;
+    initRope(chicken);
     return chicken;
 }
 Vec chickenPosition(Chicken* chicken)
@@ -91,8 +80,8 @@ Vec chickenPosition(Chicken* chicken)
     Point p2    = chicken->rope->r[chicken->rope_pos + 2];
     Point drope = mul(add(p1, p2), 0.5);
     int   s     = 1 - 2 * chicken->flipped;
-    return {drope.x - chicken->still->viewBox.max.x / 2 + s * 1.65 * (p2.x - p1.x) / 2,
-            drope.y - (chicken->still->viewBox.max.y - chicken->still->viewBox.min.y) * 0.025};
+    return {drope.x - ChickenStill->viewBox.max.x / 2 + s * 1.65 * (p2.x - p1.x) / 2,
+            drope.y - (ChickenStill->viewBox.max.y - ChickenStill->viewBox.min.y) * 0.025};
 }
 
 void drawChicken(Chicken* chicken)
@@ -100,17 +89,17 @@ void drawChicken(Chicken* chicken)
     Vec        dr           = chickenPosition(chicken);
     double     time         = iGetTime();
     int        toggleflip   = 0;
-    SVGObject* chickenFrame = chicken->still;
+    SVGObject* chickenFrame = ChickenStill;
     if (chicken->inFlip) {
         double dt    = time - chicken->flip_t;
         int    frame = round(dt / chicken->flip_T * FLIPPING_FRAMES);
         if (dt > chicken->flip_T || frame >= FLIPPING_FRAMES) {
             chicken->inFlip = 0;
             toggleflip      = 1;
-            chickenFrame    = chicken->flipping[FLIPPING_FRAMES - 1];
+            chickenFrame    = ChickenFlip[FLIPPING_FRAMES - 1];
         }
         else
-            chickenFrame = chicken->flipping[frame];
+            chickenFrame = ChickenFlip[frame];
     }
     else if (chicken->inFlight) {
         double dt    = time - chicken->flight_t;
@@ -127,16 +116,15 @@ void drawChicken(Chicken* chicken)
         }
         else {
             dr           = fdr;
-            chickenFrame = chicken->flying[frame];
+            chickenFrame = ChickenFlight[frame];
         }
     }
     TransformMat mat =
-        matMul(translateMat(dr),
-               chicken->flipped ? matMul(chicken->reflectTransform, chicken->localTransform) : chicken->localTransform);
+        matMul(translateMat(dr), chicken->flipped ? matMul(ChickenReflectMat, ChickenLocalMat) : ChickenLocalMat);
     iSetColor(0, 0, 0);
     iPath(chicken->rope->r, chicken->rope->n + 1, 5);
     renderSVGObject(chickenFrame, mat);
-    updateWorld(chicken->rope, NULL);
+    updateRope(chicken->rope);
     if (toggleflip) {
         chicken->flipped = !chicken->flipped;
         if (chicken->wouldFly) flyChicken(chicken);

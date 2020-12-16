@@ -108,6 +108,7 @@ typedef struct _SVGPathGroup {
 typedef struct {
     SVGViewBox    viewBox;
     SVGPathGroup* pathGroup;
+    TransformMat  localTransform;
 } SVGObject;
 
 TransformMat  SVGHReflectMat(SVGObject* s);
@@ -403,9 +404,10 @@ SVGObject* SVGParse(const char* filePath)
     RBTree*  idd  = createRBTree(XMLNodeComp);
     XMLNode* root = XMLParseNode(NULL, idd, buf, &i);
     assert(strcmp(root->tagName, "svg") == 0);
-    SVGObject* ret = (SVGObject*)malloc(sizeof(SVGObject));
-    ret->viewBox   = SVGParseViewBox(root);
-    ret->pathGroup = SVGParseGroup(NULL, idd, root, SVGVReflectMat(ret));
+    SVGObject* ret      = (SVGObject*)malloc(sizeof(SVGObject));
+    ret->viewBox        = SVGParseViewBox(root);
+    ret->pathGroup      = SVGParseGroup(NULL, idd, root, SVGVReflectMat(ret));
+    ret->localTransform = identity();
     XMLFreeNode(root);
     RBTreeFree(idd, 0);
     free(buf);
@@ -896,4 +898,29 @@ SVGViewBox SVGParseViewBox(XMLNode* svgRoot)
     vb.max.x = args[2] + vb.min.x;
     vb.max.y = args[3] + vb.min.y;
     return vb;
+}
+
+void SVGFindMinBounds(SVGPathGroup* g, TransformMat mat, Point* min, Point* max)
+{
+    if (!g->hidden) {
+        if (g->isGroup) {
+            for (SVGPathGroup* c = (SVGPathGroup*)g->child; c; c = c->next)
+                SVGFindMinBounds(c, mat, min, max);
+        }
+        else if (g->child) {
+            Path* path = (Path*)g->child;
+            for (int i = 0; i < path->n_points; i++) {
+                Point p = transform(mat, path->points[i]);
+                *min    = pmin(*min, p);
+                *max    = pmax(*max, p);
+            }
+        }
+    }
+}
+
+void SVGMinBounds(SVGObject* s, TransformMat mat)
+{
+    s->viewBox.min = {INFINITY, INFINITY};
+    s->viewBox.max = neg(s->viewBox.min);
+    SVGFindMinBounds(s->pathGroup, mat, &s->viewBox.min, &s->viewBox.max);
 }
