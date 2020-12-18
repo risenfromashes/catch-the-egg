@@ -93,7 +93,13 @@ double clamp(double x, double l, double r)
     return x;
 }
 
-int    inRange(double x, double l, double r) { return l <= x && x <= r || l >= x && x >= r; }
+int inRange(double x, double l, double r) { return l <= x && x <= r || l >= x && x >= r; }
+int inInterval(double x, Interval r) { return inRange(x, r.l, r.r); }
+int hasOverlap(Interval a, Interval b)
+{
+    return inInterval(a.l, b) || inInterval(a.r, b) || inInterval(b.l, a) || inInterval(b.r, a);
+}
+int    inside(Interval a, Interval b) { return inInterval(a.l, b) && inInterval(a.r, b); }
 double signedArea(Point p1, Point p2, Point p3)
 {
     return ((p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)) / 2;

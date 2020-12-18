@@ -1,5 +1,8 @@
+#pragma once
+
 #include "physics.h"
 #include "svg.h"
+#include "drop.h"
 
 #define FLYING_FRAMES   30
 #define FLIPPING_FRAMES 15
@@ -18,7 +21,10 @@ typedef struct _Chicken {
     int    flipped;
     int    inFlip;
     int    inFlight;
+    int    inLaying;
     int    wouldFly;
+    double lay_t;
+    double lay_T;
     double flip_t;
     double flip_T;
     double flight_t;
@@ -67,10 +73,11 @@ Chicken* createChicken(double altitude)
     Chicken* chicken  = (Chicken*)malloc(sizeof(Chicken));
     chicken->altitude = altitude;
     ChickenStill      = ChickenFlight[0];
-    chicken->wouldFly = chicken->flipped = chicken->inFlip = chicken->inFlight = 0;
-    chicken->flight_T                                                          = 0.75;
-    chicken->flip_T                                                            = 0.1;
-    chicken->mass                                                              = 0.5;
+    chicken->inLaying = chicken->wouldFly = chicken->flipped = chicken->inFlip = chicken->inFlight = 0;
+    chicken->flight_T                                                                              = 0.75;
+    chicken->flip_T                                                                                = 0.1;
+    chicken->lay_T                                                                                 = 0.5;
+    chicken->mass                                                                                  = 0.5;
     initRope(chicken);
     return chicken;
 }
@@ -82,6 +89,15 @@ Vec chickenPosition(Chicken* chicken)
     int   s     = 1 - 2 * chicken->flipped;
     return {drope.x - ChickenStill->viewBox.max.x / 2 + s * 1.65 * (p2.x - p1.x) / 2,
             drope.y - (ChickenStill->viewBox.max.y - ChickenStill->viewBox.min.y) * 0.025};
+}
+
+Vec eggPosition(Chicken* chicken)
+{
+    Point p1    = chicken->rope->r[chicken->rope_pos];
+    Point p2    = chicken->rope->r[chicken->rope_pos + 2];
+    Point drope = mul(add(p1, p2), 0.5);
+    int   s     = 1 - 2 * chicken->flipped;
+    return {drope.x, drope.y};
 }
 
 void drawChicken(Chicken* chicken)
@@ -166,4 +182,22 @@ void flipChicken(Chicken* chicken)
     assert(!chicken->inFlight);
     chicken->inFlip = 1;
     chicken->flip_t = iGetTime();
+}
+int chickenBusy(Chicken* chicken) { return chicken->inFlight || chicken->inFlip || chicken->inLaying; }
+
+Drop* layEgg(Chicken* chicken)
+{
+    assert(!chickenBusy(chicken));
+    int      r = rand() % 100;
+    DropType type;
+    if (r < 7)
+        type = DROP_GOLDEN_EGG;
+    else if (r < 20)
+        type = DROP_BLUE_EGG;
+    else if (r < 80)
+        type = DROP_NORMAL_EGG;
+    else
+        type = DROP_SHIT;
+    // chicken->in
+    return createDrop(type, eggPosition(chicken));
 }

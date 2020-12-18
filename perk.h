@@ -1,5 +1,5 @@
 
-
+#pragma once
 typedef enum { PERK_SIZEUP, PERK_GRAVITY, PERK_SPEEDUP } PerkType;
 
 typedef struct _Perk {
@@ -38,4 +38,12 @@ void removeFromPerkList(Perk** head, Perk* perk)
     free(perk);
 }
 
-void freePerkList(Perk* head) {}
+void freePerkList(Perk* head)
+{
+    Perk *x = head, *y;
+    while (x) {
+        y = x;
+        x = x->next;
+        free(y);
+    }
+}

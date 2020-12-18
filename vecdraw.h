@@ -73,7 +73,7 @@ int  isDiagonal(Vertex* vertices, Vertex* a, Vertex* b);
 void checkEars(Vertex* vertices);
 
 Triangle* triangulate(Point* points, int n, int* j);
-Triangle* triangulateStroke(Point* points, int N, double d, int* j);
+Triangle* triangulateStroke(Point* points, int N, double d, int closed, int* j);
 
 void drawTriangle(Triangle t, TransformMat mat);
 
@@ -244,8 +244,9 @@ Triangle* triangulate(Point* points, int n, int* j)
     freeVertexList(vertices);
     return t;
 }
-Triangle* triangulateStroke(Point* points, int N, double d, int* j)
+Triangle* triangulateStroke(Point* points, int N, double d, int closed, int* j)
 {
+    closed      = 1;
     Triangle* t = (Triangle*)malloc(sizeof(Triangle) * 2 * N);
     Point     p1;
     Point     p2 = points[0];
@@ -254,11 +255,12 @@ Triangle* triangulateStroke(Point* points, int N, double d, int* j)
     double    m, n;
     d /= 2;
     int k = 0;
-    for (int i = 0; i <= N + 1; i++) {
-        p1  = p2;
-        p2  = points[(i + 1) % N];
-        dr1 = dr2;
-        dr2 = sub(p2, p1);
+    for (int i = 0; i <= N + closed; i++) {
+        int oendp = 0;
+        p1        = p2;
+        p2        = points[(i + 1) % N];
+        dr1       = dr2;
+        dr2       = sub(p2, p1);
         if ((m = norm(dr2)) < 1e-5) continue;
         dr2 = mul(dr2, 1 / m);
         u1  = u2;
@@ -269,7 +271,7 @@ Triangle* triangulateStroke(Point* points, int N, double d, int* j)
         if (fabs(m + 1) < 1e-5) n = 0, m = 1.0;
         t1.v[0] = t2.v[0];
         t1.v[1] = t2.v[1];
-        t1.v[2] = t2.v[0] = add(p1, add(mul(u1, n * d), mul(dr1, m * d)));
+        t1.v[2] = t2.v[0] = oendp ? add(p1, mul(u1, d)) : add(p1, add(mul(u1, n * d), mul(dr1, m * d)));
         t2.v[1]           = reflect(t2.v[0], p1);
         t2.v[2]           = t1.v[1];
         if (i > 1) t[k++] = t1, t[k++] = t2;
@@ -361,7 +363,7 @@ void applyLocalTransform(TransformMat mat, Path* path)
         path->points[i] = transform(mat, path->points[i]);
     free(path->strokes);
     free(path->fills);
-    path->strokes = triangulateStroke(path->points, path->n_points, path->stroke.width, &path->n_strokes);
+    path->strokes = triangulateStroke(path->points, path->n_points, path->stroke.width, path->closed, &path->n_strokes);
     path->fills   = triangulate(path->points, path->n_points, &path->n_fills);
 }
 
@@ -373,8 +375,8 @@ Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int clos
     path->points   = points;
     path->n_points = n_points;
     path->closed   = closed;
-    path->strokes  = triangulateStroke(path->points, path->n_points, path->stroke.width, &path->n_strokes);
-    path->fills    = triangulate(path->points, path->n_points, &path->n_fills);
+    path->strokes = triangulateStroke(path->points, path->n_points, path->stroke.width, path->closed, &path->n_strokes);
+    path->fills   = triangulate(path->points, path->n_points, &path->n_fills);
     return path;
 }
 
