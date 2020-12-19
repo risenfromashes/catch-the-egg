@@ -17,7 +17,6 @@ void iResize(int w, int h) {}
 void iKeyboard(unsigned char key)
 {
     if (key == 'Q') exit(0);
-    flyChicken(game->chicken[0]);
     keyDown(game, key);
 }
 
@@ -29,7 +28,7 @@ void iSpecialKeyboardUp(unsigned char key) { keyUp(game, key); }
 int main()
 {
     loadAssets();
-    game = createGame();
+    game = createGame(1);
     iSetTransparency(1);
     iInitializeEx(width, height, 0, "Catch the Egg");
     return 0;

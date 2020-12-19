@@ -109,6 +109,7 @@ typedef struct {
     SVGViewBox    viewBox;
     SVGPathGroup* pathGroup;
     TransformMat  localTransform;
+    double        opacity;
 } SVGObject;
 
 TransformMat  SVGHReflectMat(SVGObject* s);
@@ -405,6 +406,7 @@ SVGObject* SVGParse(const char* filePath)
     XMLNode* root = XMLParseNode(NULL, idd, buf, &i);
     assert(strcmp(root->tagName, "svg") == 0);
     SVGObject* ret      = (SVGObject*)malloc(sizeof(SVGObject));
+    ret->opacity        = 1;
     ret->viewBox        = SVGParseViewBox(root);
     ret->pathGroup      = SVGParseGroup(NULL, idd, root, SVGVReflectMat(ret));
     ret->localTransform = identity();
@@ -866,20 +868,20 @@ SVGPathGroup* SVGParseGroup(SVGPathGroup* parent, RBTree* idd, XMLNode* node, Tr
     return g;
 }
 
-void renderSVGPathGroup(SVGPathGroup* g, TransformMat mat)
+void renderSVGPathGroup(SVGPathGroup* g, TransformMat mat, double opacity)
 {
     if (!g->hidden) {
         if (g->isGroup) {
             for (SVGPathGroup* c = (SVGPathGroup*)g->child; c; c = c->next)
-                renderSVGPathGroup(c, mat);
+                renderSVGPathGroup(c, mat, opacity);
         }
         else if (g->child) {
-            renderPath((Path*)g->child, mat);
+            renderPath((Path*)g->child, mat, opacity);
         }
     }
 }
 
-void renderSVGObject(SVGObject* s, TransformMat mat) { renderSVGPathGroup(s->pathGroup, mat); }
+void renderSVGObject(SVGObject* s, TransformMat mat) { renderSVGPathGroup(s->pathGroup, mat, s->opacity); }
 
 void SVGAddPoint(PointVector* points, Point p)
 {
@@ -923,4 +925,16 @@ void SVGMinBounds(SVGObject* s, TransformMat mat)
     s->viewBox.min = {INFINITY, INFINITY};
     s->viewBox.max = neg(s->viewBox.min);
     SVGFindMinBounds(s->pathGroup, mat, &s->viewBox.min, &s->viewBox.max);
+}
+
+void SVGFitToScreen(SVGObject* obj, double screenX, double screenY)
+{
+    SVGMinBounds(obj, identity());
+    double rX, rY;
+    rX                  = screenX / (obj->viewBox.max.x - obj->viewBox.min.x);
+    rY                  = screenY / (obj->viewBox.max.y - obj->viewBox.min.y);
+    double s            = min(rX, rY);
+    obj->localTransform = scaleMat({rY, rY});
+    SVGMinBounds(obj, obj->localTransform);
+    obj->localTransform = matMul(translateMat(neg(obj->viewBox.min)), obj->localTransform);
 }

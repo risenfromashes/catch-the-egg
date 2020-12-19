@@ -22,5 +22,5 @@ do
     cp $file ./bin/$5
 done
 cd bin/$5
-7z a -tzip $4_win_$5.zip $4.exe ./*.dll
+7z a -tzip $4_win_$5.zip $4.exe ./*.dll ../../assets
 mv $4_win_$5.zip ../../release

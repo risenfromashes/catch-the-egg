@@ -6,31 +6,31 @@
 
 #define FLYING_FRAMES   30
 #define FLIPPING_FRAMES 15
+#define LAYING_FRAMES   15
 
 SVGObject*   ChickenFlight[FLYING_FRAMES];
 SVGObject*   ChickenFlip[FLIPPING_FRAMES];
+SVGObject*   ChickenLaying[LAYING_FRAMES];
 SVGObject*   ChickenStill;
 TransformMat ChickenLocalMat;
 TransformMat ChickenReflectMat;
 
+#define N_CHICKEN_ACTIVITY 3
+enum ChickenActivity { CHICKEN_FLIGHT, CHICKEN_FLIP, CHICKEN_LAYING };
+
 typedef struct _Chicken {
+    double t0;
     Rope*  rope;
     int    rope_pos, next_pos;
     double altitude;
     double mass;
     int    flipped;
-    int    inFlip;
-    int    inFlight;
-    int    inLaying;
     int    wouldFly;
-    double lay_t;
-    double lay_T;
-    double flip_t;
-    double flip_T;
-    double flight_t;
-    double flight_T;
     Point  flight_start_p;
     Point  flight_peak;
+    double t[N_CHICKEN_ACTIVITY];
+    double T[N_CHICKEN_ACTIVITY];
+    int    in[N_CHICKEN_ACTIVITY];
 } Chicken;
 
 Chicken* createChicken(double altitude);
@@ -50,8 +50,12 @@ void loadChickenAssets()
         sprintf(path, "assets/flipping/chickenflip_%d.svg", i + 1);
         ChickenFlip[i] = SVGParse(path);
     }
+    for (int i = 0; i < LAYING_FRAMES; i++) {
+        sprintf(path, "assets/laying/chickenlaying_%d.svg", i + 1);
+        ChickenLaying[i] = SVGParse(path);
+    }
     ChickenStill    = ChickenFlight[0];
-    ChickenLocalMat = scaleMat({0.175, 0.175});
+    ChickenLocalMat = scaleMat({0.15, 0.15});
     SVGMinBounds(ChickenStill, ChickenLocalMat);
     ChickenLocalMat   = matMul(translateMat(neg(ChickenStill->viewBox.min)), ChickenLocalMat);
     ChickenReflectMat = matMul(translateMat({ChickenStill->viewBox.max.x, 0}), scaleMat({-1, 1}));
@@ -63,21 +67,25 @@ void initRope(Chicken* chicken)
     chicken->rope_pos = 5 + rand() % (chicken->rope->n - 10);
     chicken->rope->ext_forces[chicken->rope_pos] =
         chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, -chicken->mass * g / 2};
-    for (int i = 0; i < 500; i++)
-        updateRope(chicken->rope);
+    for (int i = 0; i < 1000; i++)
+        updateRope(chicken->rope, &chicken->t0);
 }
 
 Chicken* createChicken(double altitude)
 {
     srand((unsigned int)time(NULL));
     Chicken* chicken  = (Chicken*)malloc(sizeof(Chicken));
-    chicken->altitude = altitude;
-    ChickenStill      = ChickenFlight[0];
-    chicken->inLaying = chicken->wouldFly = chicken->flipped = chicken->inFlip = chicken->inFlight = 0;
-    chicken->flight_T                                                                              = 0.75;
-    chicken->flip_T                                                                                = 0.1;
-    chicken->lay_T                                                                                 = 0.5;
-    chicken->mass                                                                                  = 0.5;
+    chicken->wouldFly = chicken->flipped = 0;
+    chicken->altitude                    = altitude;
+    chicken->t0                          = 0;
+    chicken->mass                        = 0.5;
+    chicken->T[CHICKEN_FLIGHT]           = 0.75;
+    chicken->T[CHICKEN_FLIP]             = 0.1;
+    chicken->T[CHICKEN_LAYING]           = 0.35;
+    for (int i = 0; i < N_CHICKEN_ACTIVITY; i++) {
+        chicken->in[i] = 0;
+        chicken->t[i]  = 0;
+    }
     initRope(chicken);
     return chicken;
 }
@@ -97,7 +105,8 @@ Vec eggPosition(Chicken* chicken)
     Point p2    = chicken->rope->r[chicken->rope_pos + 2];
     Point drope = mul(add(p1, p2), 0.5);
     int   s     = 1 - 2 * chicken->flipped;
-    return {drope.x, drope.y};
+    return {drope.x + s * (ChickenStill->viewBox.max.x - ChickenStill->viewBox.min.x) * 0.22,
+            drope.y + (ChickenStill->viewBox.max.y - ChickenStill->viewBox.min.y) * 0.2};
 }
 
 void drawChicken(Chicken* chicken)
@@ -106,33 +115,49 @@ void drawChicken(Chicken* chicken)
     double     time         = iGetTime();
     int        toggleflip   = 0;
     SVGObject* chickenFrame = ChickenStill;
-    if (chicken->inFlip) {
-        double dt    = time - chicken->flip_t;
-        int    frame = round(dt / chicken->flip_T * FLIPPING_FRAMES);
-        if (dt > chicken->flip_T || frame >= FLIPPING_FRAMES) {
-            chicken->inFlip = 0;
-            toggleflip      = 1;
-            chickenFrame    = ChickenFlip[FLIPPING_FRAMES - 1];
-        }
-        else
-            chickenFrame = ChickenFlip[frame];
-    }
-    else if (chicken->inFlight) {
-        double dt    = time - chicken->flight_t;
-        double t     = dt / chicken->flight_T;
-        double m     = 6.5;
-        int    frame = (int)round(FLYING_FRAMES * (m * t + (1.5 - m) * t * t / 2)) % FLYING_FRAMES;
-        Vec    fdr   = mul(chicken->flight_start_p, (1 - t) * (1 - t));
-        fdr          = add(fdr, mul(chicken->flight_peak, 2 * t * (1 - t)));
-        fdr          = add(fdr, mul(dr, t * t));
-        if (t > 1.0 || norm(sub(fdr, dr)) < 5) {
-            chicken->inFlight = 0;
-            chicken->rope->ext_forces[chicken->rope_pos] =
-                chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, -chicken->mass * g / 2};
-        }
-        else {
-            dr           = fdr;
-            chickenFrame = ChickenFlight[frame];
+    for (int i = 0; i < N_CHICKEN_ACTIVITY; i++) {
+        if (chicken->in[i]) {
+            double dt = time - chicken->t[i];
+            int    frame;
+            switch ((ChickenActivity)i) {
+                case CHICKEN_LAYING:
+                    frame = round(dt / chicken->T[i] * LAYING_FRAMES);
+                    if (dt > chicken->T[i] || frame >= LAYING_FRAMES) {
+                        chicken->in[i] = 0;
+                        chickenFrame   = ChickenLaying[LAYING_FRAMES - 1];
+                    }
+                    else
+                        chickenFrame = ChickenLaying[frame];
+                    break;
+                case CHICKEN_FLIP:
+                    frame = round(dt / chicken->T[i] * FLIPPING_FRAMES);
+                    if (dt > chicken->T[i] || frame >= FLIPPING_FRAMES) {
+                        chicken->in[i] = 0;
+                        toggleflip     = 1;
+                        chickenFrame   = ChickenFlip[FLIPPING_FRAMES - 1];
+                    }
+                    else
+                        chickenFrame = ChickenFlip[frame];
+                    break;
+                case CHICKEN_FLIGHT: {
+                    double t = dt / chicken->T[i];
+                    double m = 6.5;
+                    frame    = (int)round(FLYING_FRAMES * (m * t + (1.5 - m) * t * t / 2)) % FLYING_FRAMES;
+                    Vec fdr  = mul(chicken->flight_start_p, (1 - t) * (1 - t));
+                    fdr      = add(fdr, mul(chicken->flight_peak, 2 * t * (1 - t)));
+                    fdr      = add(fdr, mul(dr, t * t));
+                    if (t > 1.0 || norm(sub(fdr, dr)) < 5) {
+                        chicken->in[i] = 0;
+                        chicken->rope->ext_forces[chicken->rope_pos] =
+                            chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, -chicken->mass * g / 2};
+                    }
+                    else {
+                        dr           = fdr;
+                        chickenFrame = ChickenFlight[frame];
+                    }
+                } break;
+            }
+            break;
         }
     }
     TransformMat mat =
@@ -140,7 +165,7 @@ void drawChicken(Chicken* chicken)
     iSetColor(0, 0, 0);
     iPath(chicken->rope->r, chicken->rope->n + 1, 5);
     renderSVGObject(chickenFrame, mat);
-    updateRope(chicken->rope);
+    updateRope(chicken->rope, &chicken->t0);
     if (toggleflip) {
         chicken->flipped = !chicken->flipped;
         if (chicken->wouldFly) flyChicken(chicken);
@@ -149,7 +174,7 @@ void drawChicken(Chicken* chicken)
 
 void flyChicken(Chicken* chicken)
 {
-    assert(!chicken->inFlip);
+    assert(!chicken->in[CHICKEN_FLIP]);
     if (chicken->wouldFly)
         chicken->wouldFly = 0;
     else {
@@ -167,23 +192,28 @@ void flyChicken(Chicken* chicken)
             return;
         }
     }
-    chicken->inFlight                            = 1;
-    chicken->flight_t                            = iGetTime();
+    chicken->in[CHICKEN_FLIGHT]                  = 1;
+    chicken->t[CHICKEN_FLIGHT]                   = iGetTime();
     chicken->flight_start_p                      = chickenPosition(chicken);
     chicken->rope->ext_forces[chicken->rope_pos] = chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, 0};
     chicken->rope_pos                                                                               = chicken->next_pos;
-    Point mid            = mul(add(chicken->flight_start_p, chickenPosition(chicken)), 0.5);
-    chicken->flight_T    = fabs(mid.x - chicken->flight_start_p.x) * 2 / 1280 * 2.25;
-    chicken->flight_peak = add(mid, {0, 150});
+    Point mid                  = mul(add(chicken->flight_start_p, chickenPosition(chicken)), 0.5);
+    chicken->T[CHICKEN_FLIGHT] = fabs(mid.x - chicken->flight_start_p.x) * 2 / 1280 * 2.25;
+    chicken->flight_peak       = add(mid, {0, 150});
 }
 
 void flipChicken(Chicken* chicken)
 {
-    assert(!chicken->inFlight);
-    chicken->inFlip = 1;
-    chicken->flip_t = iGetTime();
+    assert(!chicken->in[CHICKEN_FLIP]);
+    chicken->in[CHICKEN_FLIP] = 1;
+    chicken->t[CHICKEN_FLIP]  = iGetTime();
 }
-int chickenBusy(Chicken* chicken) { return chicken->inFlight || chicken->inFlip || chicken->inLaying; }
+int chickenBusy(Chicken* chicken)
+{
+    for (int i = 0; i < N_CHICKEN_ACTIVITY; i++)
+        if (chicken->in[i]) return 1;
+    return 0;
+}
 
 Drop* layEgg(Chicken* chicken)
 {
@@ -198,6 +228,7 @@ Drop* layEgg(Chicken* chicken)
         type = DROP_NORMAL_EGG;
     else
         type = DROP_SHIT;
-    // chicken->in
+    chicken->in[CHICKEN_LAYING] = 1;
+    chicken->t[CHICKEN_LAYING]  = iGetTime();
     return createDrop(type, eggPosition(chicken));
 }

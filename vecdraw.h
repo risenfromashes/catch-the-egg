@@ -96,11 +96,11 @@ Path* createPath(Point* points, int n_points, Fill fill, Stroke stroke, int clos
 Path* duplicatePath(Path* from);
 void  freePath(Path* path);
 
-void strokePath(Path* path, TransformMat mat);
+void strokePath(Path* path, TransformMat mat, double opacity);
 
-void fillPath(Path* path, TransformMat mat);
+void fillPath(Path* path, TransformMat mat, double opacity);
 
-void renderPath(Path* path, TransformMat mat);
+void renderPath(Path* path, TransformMat mat, double opacity);
 
 PointVector* createPointVector();
 void         pointVectorPush(PointVector* pvec, Point p);
@@ -406,26 +406,26 @@ void freePath(Path* path)
     free(path);
 }
 
-void strokePath(Path* path, TransformMat mat)
+void strokePath(Path* path, TransformMat mat, double opacity)
 {
     if (path->n_points < 2) return;
-    iSetColorEx(path->stroke.color.r, path->stroke.color.g, path->stroke.color.b, path->stroke.opacity);
+    iSetColorEx(path->stroke.color.r, path->stroke.color.g, path->stroke.color.b, path->stroke.opacity * opacity);
     for (int i = 0; i < path->n_strokes; i++)
         drawTriangle(path->strokes[i], mat);
 }
 
-void fillPath(Path* path, TransformMat mat)
+void fillPath(Path* path, TransformMat mat, double opacity)
 {
     if (path->n_points < 3) return;
-    iSetColorEx(path->fill.color.r, path->fill.color.g, path->fill.color.b, path->fill.opacity);
+    iSetColorEx(path->fill.color.r, path->fill.color.g, path->fill.color.b, path->fill.opacity * opacity);
     for (int i = 0; i < path->n_fills; i++)
         drawTriangle(path->fills[i], mat);
 }
 
-void renderPath(Path* path, TransformMat mat)
+void renderPath(Path* path, TransformMat mat, double opacity)
 {
-    if (path->fill.fill) fillPath(path, mat);
-    if (path->stroke.width > 0.1) strokePath(path, mat);
+    if (path->fill.fill) fillPath(path, mat, opacity);
+    if (path->stroke.width > 0.1) strokePath(path, mat, opacity);
 }
 
 PointVector* createPointVector()

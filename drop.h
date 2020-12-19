@@ -25,7 +25,7 @@ void loadDropAssets()
 {
     TransformMat scales[N_DROPS];
     for (int i = 0; i < N_DROPS; i++)
-        scales[i] = scaleMat({0.25, 0.25});
+        scales[i] = scaleMat({0.22, 0.22});
     DropObjects[DROP_GOLDEN_EGG] = SVGParse("assets/drops/golden_egg.svg");
     DropObjects[DROP_BLUE_EGG]   = SVGParse("assets/drops/blue_egg.svg");
     DropObjects[DROP_NORMAL_EGG] = SVGParse("assets/drops/normal_egg.svg");

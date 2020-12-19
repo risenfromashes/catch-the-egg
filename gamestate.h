@@ -7,12 +7,24 @@
 
 SVGObject* Background;
 
+typedef enum {
+    ONE_THIRTY_X1,
+    ONE_THIRTY_X2,
+    TWO_ZERO_X1,
+    TWO_ZERO_X2,
+    TWO_THIRTY_X1,
+    TWO_THIRTY_X2,
+} GameFormat;
+
 typedef struct {
     int          n_chickens;
-    Chicken*     chicken[3];
+    Chicken*     chicken[2];
     Basket*      basket;
     Drop*        drops;
     Perk*        perks;
+    int          score;
+    double       start_t;
+    double       duration;
     unsigned int perkFlags;
 } GameState;
 
@@ -24,15 +36,47 @@ void loadAssets()
     loadDropAssets();
 }
 
-GameState* createGame()
+GameState* createGame(GameFormat format)
 {
-    GameState* state  = (GameState*)malloc(sizeof(GameState));
-    state->n_chickens = 1;
-    state->chicken[0] = createChicken(500);
-    state->basket     = createBasket();
-    state->drops      = NULL;
-    state->perks      = NULL;
-    state->perkFlags  = 0;
+    GameState* state = (GameState*)malloc(sizeof(GameState));
+    state->start_t   = iGetTime();
+    switch (format) {
+        case ONE_THIRTY_X1:
+            state->n_chickens = 1;
+            state->duration   = 90;
+            break;
+        case ONE_THIRTY_X2:
+            state->n_chickens = 2;
+            state->duration   = 90;
+            break;
+        case TWO_ZERO_X1:
+            state->n_chickens = 1;
+            state->duration   = 120;
+            break;
+        case TWO_ZERO_X2:
+            state->n_chickens = 2;
+            state->duration   = 120;
+            break;
+        case TWO_THIRTY_X1:
+            state->n_chickens = 1;
+            state->duration   = 150;
+            break;
+        case TWO_THIRTY_X2:
+            state->n_chickens = 2;
+            state->duration   = 150;
+            break;
+    }
+    if (state->n_chickens == 2) {
+        state->chicken[0] = createChicken(450);
+        state->chicken[1] = createChicken(600);
+    }
+    else {
+        state->chicken[0] = createChicken(500);
+    }
+    state->basket    = createBasket();
+    state->drops     = NULL;
+    state->perks     = NULL;
+    state->perkFlags = 0;
     return state;
 }
 

@@ -95,14 +95,13 @@ void calcRope(Rope* c, double dt)
     }
 }
 
-void updateRope(Rope* rp)
+void updateRope(Rope* rp, double* t0)
 {
-    static double t0 = iGetTime();
-    double        t  = iGetTime();
-    double        Dt = (t - t0) * 10;
-    t0               = t;
-    double dt        = 0.002;
-    double N         = Dt / dt;
+    double t  = iGetTime();
+    double Dt = (t - *t0) * 10;
+    *t0       = t;
+    double dt = 0.002;
+    double N  = Dt / dt;
     for (int i = 0; i < N; i++) {
         calcRope(rp, dt);
     }
