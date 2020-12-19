@@ -2,7 +2,7 @@
 
 #include "svg.h"
 #include "physics.h"
-
+#include "perk.h"
 #define N_CHICKEN_DROPS 4
 #define N_DROPS         8
 
@@ -16,6 +16,16 @@ typedef enum {
     DROP_SIZEUP,
     DROP_CLOCK
 } DropType;
+
+PerkType toPerk(DropType type)
+{
+    switch (type) {
+        case DROP_PARACHUTE: return PERK_PARACHUTE;
+        case DROP_SPEEDUP: return PERK_SPEEDUP;
+        case DROP_SIZEUP: return PERK_SIZEUP;
+    }
+    return PERK_SPEEDUP;
+}
 
 SVGObject* DropObjects[N_DROPS];
 double     DropWidths[N_DROPS];
@@ -96,17 +106,16 @@ void removeFromDropList(Drop** head, Drop* drop)
     free(drop);
 }
 
-void updateDrops(Drop* head, double wind, double dt)
+void updateDrops(Drop* head, double wind, double drag, double dt)
 {
     dt *= 10;
     Drop* drop = head;
     while (drop) {
-        drop->p     = add(drop->p, mul(drop->v, dt));
-        Vec    a    = {wind, -g};
-        double drag = 0.0095;
-        a           = add(a, mul(drop->v, -norm(drop->v) * drag));
-        drop->v     = add(drop->v, mul(a, dt));
-        drop        = drop->next;
+        drop->p = add(drop->p, mul(drop->v, dt));
+        Vec a   = {wind, -g};
+        a       = add(a, mul(drop->v, -norm(drop->v) * drag));
+        drop->v = add(drop->v, mul(a, dt));
+        drop    = drop->next;
     }
 }
 

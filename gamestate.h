@@ -27,6 +27,8 @@ typedef struct {
     Drop*        drops;
     Perk*        perks;
     int          score;
+    double       wind;
+    double       drag;
     double       t, t0;
     double       start_t;
     double       pause_t;
@@ -45,13 +47,6 @@ void loadAssets()
 }
 
 void resumeGame(GameState* state);
-void handlePerkAdd(PerkType type)
-{
-    // switch(type){
-    //     case PERK_
-    // }
-}
-void handlePerkSub(PerkType type) {}
 
 GameState* createGame(GameFormat format)
 {
@@ -92,6 +87,8 @@ GameState* createGame(GameFormat format)
     else {
         state->chicken[0] = createChicken(500);
     }
+    state->wind      = 0;
+    state->drag      = 0.0095;
     state->paused    = 0;
     state->score     = 0;
     state->basket    = createBasket();
@@ -134,6 +131,41 @@ Drop* disturbChicken(Chicken* chicken)
     }
     return NULL;
 }
+void handlePerkAdd(GameState* state, PerkType type)
+{
+    switch (type) {
+        case PERK_SIZEUP:
+            state->basket->scale *= 1.5;
+            resizeBasket(state->basket);
+            break;
+        case PERK_SPEEDUP: state->basket->v_x *= 1.5; break;
+        case PERK_PARACHUTE: state->drag *= 2; break;
+    }
+    addToPerkList(&state->perks, createPerk(type));
+}
+void handlePerkSub(GameState* state, PerkType type)
+{
+    switch (type) {
+        case PERK_SIZEUP:
+            state->basket->scale /= 1.5;
+            resizeBasket(state->basket);
+            break;
+        case PERK_SPEEDUP: state->basket->v_x /= 1.5; break;
+        case PERK_PARACHUTE: state->drag /= 2; break;
+    }
+}
+void removePerks(GameState* state, double t)
+{
+    Perk *perk, *next = state->perks;
+    while (next) {
+        perk = next;
+        next = perk->next;
+        if (perk->start_t + perk->duration <= t) {
+            handlePerkSub(state, perk->type);
+            removeFromPerkList(&state->perks, perk);
+        }
+    }
+}
 void handleCatch(GameState* state, Drop* drop)
 {
     switch (drop->type) {
@@ -141,10 +173,10 @@ void handleCatch(GameState* state, Drop* drop)
         case DROP_BLUE_EGG: state->score += 5; break;
         case DROP_NORMAL_EGG: state->score += 1; break;
         case DROP_SHIT: state->score -= 10; break;
-        case DROP_PARACHUTE: break;
-        case DROP_SPEEDUP: break;
-        case DROP_SIZEUP: break;
         case DROP_CLOCK: state->duration += 5; break;
+        case DROP_PARACHUTE:
+        case DROP_SPEEDUP:
+        case DROP_SIZEUP: handlePerkAdd(state, toPerk(drop->type)); break;
     }
     state->score = max(state->score, 0);
 }
@@ -240,16 +272,15 @@ void drawFrame(GameState* state)
         renderSVGObject(Background, identity());
         drawBasketBottom(state->basket);
         drawBasketBottom(state->basket);
-        updateDrops(state->drops, 0.0 /*wind*/, dt);
+        updateDrops(state->drops, state->drag, state->drag, dt);
         removeDrops(state);
+        removePerks(state, state->t);
         drawDrops(state->drops);
         drawBasketTop(state->basket);
-        // printf("dt: %lf\n", iGetTime() - state->t);
         for (int i = 0; i < state->n_chickens; i++)
             drawChicken(state->chicken[i], state->t, dt);
         state->t0 = state->t;
     }
-    // if (++f >= 2) pauseGame(state);
 }
 
 void keyDown(GameState* state, unsigned char key)

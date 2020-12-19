@@ -1,10 +1,11 @@
 
 #pragma once
-typedef enum { PERK_SIZEUP, PERK_GRAVITY, PERK_SPEEDUP } PerkType;
+typedef enum { PERK_SIZEUP, PERK_PARACHUTE, PERK_SPEEDUP } PerkType;
 
 typedef struct _Perk {
+    PerkType      type;
     double        start_t;
-    double        end_t;
+    double        duration;
     struct _Perk *prev, *next;
 } Perk;
 
@@ -15,6 +16,15 @@ int countPerks(Perk* head)
     while (perk)
         perk = perk->next, i++;
     return i;
+}
+Perk* createPerk(PerkType type)
+{
+    Perk* perk     = (Perk*)malloc(sizeof(Perk));
+    perk->type     = type;
+    perk->start_t  = iGetTime();
+    perk->duration = 10;
+    perk->prev = perk->next = NULL;
+    return perk;
 }
 
 void addToPerkList(Perk** head, Perk* perk)
