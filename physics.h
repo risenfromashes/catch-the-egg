@@ -5,9 +5,8 @@
 double g = 9.8 * 2;
 typedef struct {
     double k_s, k_b, k_d, dm, dp, maxp, minp;
-    Vec *  r, *r0, *rc, *a;
+    Vec *  r, *r0, *a;
     Vec*   ext_forces;
-    char*  colliding;
     int    n;
 } Rope;
 
@@ -30,10 +29,8 @@ Rope* createRope(Vec p1, Vec p2, double Y, double A, double u, double length, in
     c->dm = u, c->n = n_Points + 1, c->dp = length / c->n, c->k_s = 1;
     c->r          = (Vec*)malloc(sizeof(Vec) * (c->n + 1));
     c->r0         = (Vec*)malloc(sizeof(Vec) * (c->n + 1));
-    c->rc         = (Vec*)malloc(sizeof(Vec) * (c->n + 1));
     c->a          = (Vec*)malloc(sizeof(Vec) * (c->n + 1));
     c->ext_forces = (Vec*)malloc(sizeof(Vec) * (c->n + 1));
-    c->colliding  = (char*)malloc(c->n + 1);
     Vec del       = mul(sub(p2, p1), 1.0 / c->n);
     c->r0[0] = c->r[0] = p1;
     for (int i = 1; i < c->n; i++)
@@ -43,6 +40,16 @@ Rope* createRope(Vec p1, Vec p2, double Y, double A, double u, double length, in
         c->a[i] = c->ext_forces[i] = {0, 0};
     return c;
 }
+
+void freeRope(Rope* c)
+{
+    free(c->r);
+    free(c->r0);
+    free(c->a);
+    free(c->ext_forces);
+    free(c);
+}
+
 void calcRope(Rope* c, double dt)
 {
     // mass-spring model
@@ -95,11 +102,9 @@ void calcRope(Rope* c, double dt)
     }
 }
 
-void updateRope(Rope* rp, double* t0)
+void updateRope(Rope* rp, double _dt)
 {
-    double t  = iGetTime();
-    double Dt = (t - *t0) * 10;
-    *t0       = t;
+    double Dt = _dt * 10;
     double dt = 0.002;
     double N  = Dt / dt;
     for (int i = 0; i < N; i++) {

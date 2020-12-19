@@ -124,6 +124,12 @@ BoundingBox cutBB(BoundingBox* c, ElementAlignment p, FlowDirection d, double w,
     return r;
 }
 
+typedef union {
+    int    iData;
+    double fData;
+    void*  pData;
+} Data;
+
 typedef struct {
     HAlignment h;
     VAlignment v;
@@ -156,6 +162,7 @@ typedef struct _Element {
     struct _Element *next, *prev; // circular
     UIElementType    type;
     UIStyle          style;
+    Data             data;
 } Element;
 typedef struct {
     Element base;
@@ -288,6 +295,12 @@ void removeElement(Element* element)
     element->prev->next = element->next;
     element->next->prev = element->prev;
     clearElements(element);
+}
+
+void clearLayout(Layout* layout)
+{
+    clearElements((Element*)layout->rootDiv);
+    free(layout);
 }
 
 void addToLayout(Layout* layout, Element* child) { addChild((Element*)layout->rootDiv, child); }
@@ -488,8 +501,6 @@ Layout* createLayout(double x, double y, double w, double h)
     layout->rootDiv->base.style.bb     = {.x = x, .y = y, .w = w, .h = h};
     return layout;
 }
-
-void clearLayout(Layout* layout) {}
 
 void renderRect(Element* element)
 {

@@ -19,7 +19,6 @@ TransformMat ChickenReflectMat;
 enum ChickenActivity { CHICKEN_FLIGHT, CHICKEN_FLIP, CHICKEN_LAYING };
 
 typedef struct _Chicken {
-    double t0;
     Rope*  rope;
     int    rope_pos, next_pos;
     double altitude;
@@ -67,8 +66,7 @@ void initRope(Chicken* chicken)
     chicken->rope_pos = 5 + rand() % (chicken->rope->n - 10);
     chicken->rope->ext_forces[chicken->rope_pos] =
         chicken->rope->ext_forces[chicken->rope_pos + 2] = {0, -chicken->mass * g / 2};
-    for (int i = 0; i < 1000; i++)
-        updateRope(chicken->rope, &chicken->t0);
+    updateRope(chicken->rope, 0.1);
 }
 
 Chicken* createChicken(double altitude)
@@ -77,7 +75,6 @@ Chicken* createChicken(double altitude)
     Chicken* chicken  = (Chicken*)malloc(sizeof(Chicken));
     chicken->wouldFly = chicken->flipped = 0;
     chicken->altitude                    = altitude;
-    chicken->t0                          = 0;
     chicken->mass                        = 0.5;
     chicken->T[CHICKEN_FLIGHT]           = 0.75;
     chicken->T[CHICKEN_FLIP]             = 0.1;
@@ -109,10 +106,9 @@ Vec eggPosition(Chicken* chicken)
             drope.y + (ChickenStill->viewBox.max.y - ChickenStill->viewBox.min.y) * 0.2};
 }
 
-void drawChicken(Chicken* chicken)
+void drawChicken(Chicken* chicken, double time, double dtime)
 {
     Vec        dr           = chickenPosition(chicken);
-    double     time         = iGetTime();
     int        toggleflip   = 0;
     SVGObject* chickenFrame = ChickenStill;
     for (int i = 0; i < N_CHICKEN_ACTIVITY; i++) {
@@ -165,7 +161,7 @@ void drawChicken(Chicken* chicken)
     iSetColor(0, 0, 0);
     iPath(chicken->rope->r, chicken->rope->n + 1, 5);
     renderSVGObject(chickenFrame, mat);
-    updateRope(chicken->rope, &chicken->t0);
+    updateRope(chicken->rope, dtime);
     if (toggleflip) {
         chicken->flipped = !chicken->flipped;
         if (chicken->wouldFly) flyChicken(chicken);

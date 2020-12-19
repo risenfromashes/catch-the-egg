@@ -49,6 +49,7 @@ void loadDropAssets()
 }
 
 typedef struct _Drop {
+    double        t0;
     DropType      type;
     Vec           p, v;
     int           inside;
@@ -95,13 +96,10 @@ void removeFromDropList(Drop** head, Drop* drop)
     free(drop);
 }
 
-void updateDrops(Drop* head, double wind)
+void updateDrops(Drop* head, double wind, double dt)
 {
-    static double t0 = iGetTime();
-    double        t  = iGetTime();
-    double        dt = (t - t0) * 10;
-    t0               = t;
-    Drop* drop       = head;
+    dt *= 10;
+    Drop* drop = head;
     while (drop) {
         drop->p     = add(drop->p, mul(drop->v, dt));
         Vec    a    = {wind, -g};

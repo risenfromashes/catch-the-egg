@@ -47,6 +47,15 @@ typedef struct {
 
 typedef Point Vec;
 
+void swap(void* p1, void* p2, size_t size)
+{
+    void* t = malloc(size);
+    memcpy(t, p1, size);
+    memcpy(p1, p2, size);
+    memcpy(p2, t, size);
+    free(t);
+}
+
 double toRad(double deg) { return deg * PI / 180; }
 Point  add(Point p1, Point p2) { return {p1.x + p2.x, p1.y + p2.y}; }
 Point  sub(Point p1, Point p2) { return {p1.x - p2.x, p1.y - p2.y}; }
@@ -359,11 +368,9 @@ static double _time()
     return clock() / double(CLOCKS_PER_SEC);
 #endif
 }
-double iGetTime()
-{
-    static double t0 = _time();
-    return _time() - t0;
-}
+
+double initTime = 0.0;
+double iGetTime() { return _time() - initTime; }
 
 double iRandom(double min, double max)
 {
@@ -456,40 +463,15 @@ void keyboardHandler4FF(int key, int x, int y)
     glutPostRedisplay();
 }
 
-// enables MSAA, glBlending for transparency
-// also adds resize and passive mouse movement callbacks
-void iInitializeEx(int width = 500, int height = 500, int gameMode = 0, const char* title = "iGraphics")
+void iExit();
+
+void iInit()
 {
-
-    iScreenHeight = height;
-    iScreenWidth  = width;
-
-#ifdef FREEGLUT
-    int   n = 1;
-    char* p[1];
-    p[0] = (char*)malloc(8);
-    glutInit(&n, p);
-    glutSetOption(GLUT_MULTISAMPLE, 8);
-#endif
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_ALPHA | GLUT_MULTISAMPLE);
-#ifdef FREEGLUT
-    glEnable(GLUT_MULTISAMPLE);
-#endif
-
-    glutInitWindowSize(width, height);
-    glutInitWindowPosition(10, 10);
-    if (!gameMode)
-        glutCreateWindow(title);
-    else {
-        glutGameModeString("1280x720");
-        glutEnterGameMode();
-        glutSetCursor(GLUT_CURSOR_NONE);
-    }
     glClearColor(0.0, 0.0, 0.0, 0.0);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0.0, width, 0.0, height, -1.0, 1.0);
+    glOrtho(0.0, iScreenWidth, 0.0, iScreenHeight, -1.0, 1.0);
 
     glutDisplayFunc(displayFF);
     glutReshapeFunc(resizeFF);              // added resize callback
@@ -517,6 +499,38 @@ void iInitializeEx(int width = 500, int height = 500, int gameMode = 0, const ch
 
     glEnable(GL_POLYGON_SMOOTH);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_LINEAR);
+}
 
+// enables MSAA, glBlending for transparency
+// also adds resize and passive mouse movement callbacks
+void iInitializeEx(int width = 500, int height = 500, int gameMode = 0, const char* title = "iGraphics")
+{
+    initTime      = _time();
+    iScreenHeight = height;
+    iScreenWidth  = width;
+
+#ifdef FREEGLUT
+    int   n = 1;
+    char* p[1];
+    p[0] = (char*)malloc(8);
+    glutInit(&n, p);
+    glutSetOption(GLUT_MULTISAMPLE, 8);
+#endif
+#ifdef FREEGLUT
+    glEnable(GLUT_MULTISAMPLE);
+#endif
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_ALPHA | GLUT_MULTISAMPLE);
+
+    glutInitWindowSize(width, height);
+    glutInitWindowPosition(10, 10);
+    if (!gameMode)
+        glutCreateWindow(title);
+    else {
+        glutGameModeString("1280x720");
+        glutEnterGameMode();
+        glutSetCursor(GLUT_CURSOR_NONE);
+    }
+    iInit();
+    atexit(iExit);
     glutMainLoop();
 }

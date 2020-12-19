@@ -11,7 +11,7 @@ then
     ./bin/$4
 else 
     export PATH=/c/msys64/mingw64/bin:$PATH
-    g++ -g -IOpenGL/include -LOpenGL/dll/x64 $3 -o ./bin/$4 -lfreeglut -lOPENGL32 #-O2 # -mwindows
+    g++ -g -IOpenGL/include -LOpenGL/dll/x64 $3 -o ./bin/$4 -lfreeglut -lOPENGL32 -O2 # -mwindows
     for file in OpenGL/dll/x64/*.dll
     do
         cp $file ./bin/

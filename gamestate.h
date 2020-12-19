@@ -6,6 +6,9 @@
 #include "perk.h"
 
 SVGObject* Background;
+int        assetsLoaded = 0;
+
+#define N_GAME_FORMAT 6
 
 typedef enum {
     ONE_THIRTY_X1,
@@ -17,13 +20,17 @@ typedef enum {
 } GameFormat;
 
 typedef struct {
+    GameFormat   format;
     int          n_chickens;
     Chicken*     chicken[2];
     Basket*      basket;
     Drop*        drops;
     Perk*        perks;
     int          score;
+    double       t, t0;
     double       start_t;
+    double       pause_t;
+    int          paused;
     double       duration;
     unsigned int perkFlags;
 } GameState;
@@ -34,12 +41,24 @@ void loadAssets()
     loadChickenAssets();
     loadBasketAssets();
     loadDropAssets();
+    assetsLoaded = 1;
 }
+
+void resumeGame(GameState* state);
+void handlePerkAdd(PerkType type)
+{
+    // switch(type){
+    //     case PERK_
+    // }
+}
+void handlePerkSub(PerkType type) {}
 
 GameState* createGame(GameFormat format)
 {
+    if (!assetsLoaded) loadAssets();
     GameState* state = (GameState*)malloc(sizeof(GameState));
-    state->start_t   = iGetTime();
+    state->format    = format;
+    state->pause_t = state->start_t = state->t = state->t0 = iGetTime();
     switch (format) {
         case ONE_THIRTY_X1:
             state->n_chickens = 1;
@@ -73,6 +92,8 @@ GameState* createGame(GameFormat format)
     else {
         state->chicken[0] = createChicken(500);
     }
+    state->paused    = 0;
+    state->score     = 0;
     state->basket    = createBasket();
     state->drops     = NULL;
     state->perks     = NULL;
@@ -113,7 +134,20 @@ Drop* disturbChicken(Chicken* chicken)
     }
     return NULL;
 }
-void handleCatch(Drop* drop) {}
+void handleCatch(GameState* state, Drop* drop)
+{
+    switch (drop->type) {
+        case DROP_GOLDEN_EGG: state->score += 10; break;
+        case DROP_BLUE_EGG: state->score += 5; break;
+        case DROP_NORMAL_EGG: state->score += 1; break;
+        case DROP_SHIT: state->score -= 10; break;
+        case DROP_PARACHUTE: break;
+        case DROP_SPEEDUP: break;
+        case DROP_SIZEUP: break;
+        case DROP_CLOCK: state->duration += 5; break;
+    }
+    state->score = max(state->score, 0);
+}
 void removeDrops(GameState* state)
 {
     Drop *drop, *next = state->drops;
@@ -149,95 +183,222 @@ void removeDrops(GameState* state)
                 drop->inside = 2 * in - 1;
                 continue;
             }
-            else if (inside(db, bd))
+            else if (inside(db, ibd) || drop->inside == 1)
                 goto catchAndRemove;
             else if (drop->p.y <= 0)
                 goto remove;
+            else
+                continue;
         catchAndRemove:
-            handleCatch(drop);
+            handleCatch(state, drop);
         remove:
             removeFromDropList(&state->drops, drop);
         }
     }
 }
 
-void drawFrame(GameState* state)
+void       saveGameState(GameState* state);
+GameState* loadGameState();
+
+void pauseGame(GameState* state)
 {
-    generateDrop(state);
-    Drop* chickenDrop;
-    for (int i = 0; i < state->n_chickens; i++)
-        if (!chickenBusy(state->chicken[i]))
-            if (chickenDrop = disturbChicken(state->chicken[i])) addToDropList(&state->drops, chickenDrop);
-    renderSVGObject(Background, identity());
-    drawBasketBottom(state->basket);
-    drawBasketBottom(state->basket);
-    updateDrops(state->drops, 0.0 /*wind*/);
-    removeDrops(state);
-    drawDrops(state->drops);
-    drawBasketTop(state->basket);
-    for (int i = 0; i < state->n_chickens; i++)
-        drawChicken(state->chicken[i]);
+    state->paused  = 1;
+    state->pause_t = iGetTime();
+}
+void updateTimes(GameState* state, double t0, double t)
+{
+    state->start_t = t - (t0 - state->start_t);
+    state->t0      = t - (t0 - state->t0);
+    for (int i = 0; i < state->n_chickens; i++) {
+        for (int j = 0; j < N_CHICKEN_ACTIVITY; j++) {
+            state->chicken[i]->t[j] = t - (t0 - state->chicken[i]->t[j]);
+        }
+    }
 }
 
-void keyDown(GameState* state, unsigned char key) { controlBasket(state->basket, key, 1); }
+void resumeGame(GameState* state)
+{
+    if (!assetsLoaded) loadAssets();
+    resizeBasket(state->basket);
+    state->t      = iGetTime();
+    state->paused = 0;
+    updateTimes(state, state->pause_t, state->t);
+}
+
+void drawFrame(GameState* state)
+{
+    static int f = 0;
+    if (!state->paused) {
+        state->t  = iGetTime();
+        double dt = state->t - state->t0;
+        // printf("t: %lf\n", state->t);
+        generateDrop(state);
+        Drop* chickenDrop;
+        for (int i = 0; i < state->n_chickens; i++)
+            if (!chickenBusy(state->chicken[i]))
+                if (chickenDrop = disturbChicken(state->chicken[i])) addToDropList(&state->drops, chickenDrop);
+        renderSVGObject(Background, identity());
+        drawBasketBottom(state->basket);
+        drawBasketBottom(state->basket);
+        updateDrops(state->drops, 0.0 /*wind*/, dt);
+        removeDrops(state);
+        drawDrops(state->drops);
+        drawBasketTop(state->basket);
+        // printf("dt: %lf\n", iGetTime() - state->t);
+        for (int i = 0; i < state->n_chickens; i++)
+            drawChicken(state->chicken[i], state->t, dt);
+        state->t0 = state->t;
+    }
+    // if (++f >= 2) pauseGame(state);
+}
+
+void keyDown(GameState* state, unsigned char key)
+{
+    static int saved = 0;
+    if (tolower(key) == 's') {
+        saveGameState(state);
+        printf("saved\n");
+    }
+    else if (key == ' ') {
+        if (state->paused)
+            resumeGame(state);
+        else
+            pauseGame(state);
+    }
+    else
+        controlBasket(state->basket, key, 1);
+}
 
 void keyUp(GameState* state, unsigned char key) { controlBasket(state->basket, key, 0); }
 
-// file structure
-// n_chicken - sizeof(int)
+// structure
+// state - sizeof(GameState)
+// n_chicken-sizeof(int)
 // n_drops - sizeof(int)
 // n_perks - sizeof(int)
 // chickens - sizeof(Chicken) * n_chicken
 // basket - sizeof(Basket)
 // drops - sizeof(drop) * n_drops
 // perks - sizeof(Perk) * n_perks
-// perkFlags - sizeof(unsigned int)
 
-GameState* loadGame()
+void saveGameState(GameState* state)
+{
+    if (!state->paused) pauseGame(state);
+    FILE* fp = fopen("save.dat", "wb");
+    fwrite(state, sizeof(GameState), 1, fp);
+    int n_chicken = state->n_chickens;
+    int n_drops   = countDrops(state->drops);
+    int n_perks   = countPerks(state->perks);
+    fwrite(&n_chicken, sizeof(int), 1, fp);
+    fwrite(&n_drops, sizeof(int), 1, fp);
+    fwrite(&n_perks, sizeof(int), 1, fp);
+    for (int i = 0; i < n_chicken; i++)
+        fwrite(state->chicken[i], sizeof(Chicken), 1, fp);
+    fwrite(state->basket, sizeof(Basket), 1, fp);
+    Drop* drop = state->drops;
+    while (drop) {
+        fwrite(drop, sizeof(Drop), 1, fp);
+        drop = drop->next;
+    }
+    Perk* perk = state->perks;
+    while (perk) {
+        fwrite(perk, sizeof(Perk), 1, fp);
+        perk = perk->next;
+    }
+    fclose(fp);
+}
+GameState* loadGameState()
 {
     FILE* fp = fopen("save.dat", "rb");
     if (!fp) return NULL;
     GameState* state = (GameState*)malloc(sizeof(GameState));
-    memset(state, 0, sizeof(GameState));
+    fread(state, sizeof(GameState), 1, fp);
+    if (feof(fp) || ferror(fp)) {
+        free(state);
+        return NULL;
+    }
     int n_chickens, n_drops, n_perks;
     fread(&n_chickens, sizeof(int), 1, fp);
     fread(&n_drops, sizeof(int), 1, fp);
     fread(&n_perks, sizeof(int), 1, fp);
-    if (feof(fp) || ferror(fp)) goto failure;
-    state->n_chickens = n_chickens;
+    if (feof(fp) || ferror(fp)) {
+        free(state);
+        return NULL;
+    }
+    // assert(n_chickens == state->n_chickens);
     for (int i = 0; i < n_chickens; i++) {
         state->chicken[i] = (Chicken*)malloc(sizeof(Chicken));
         fread(state->chicken[i], sizeof(Chicken), 1, fp);
-        if (feof(fp) || ferror(fp)) goto failure;
+        if (feof(fp) || ferror(fp)) {
+            for (int j = 0; j <= i; j++) {
+                if (j < i) freeRope(state->chicken[j]->rope);
+                free(state->chicken[j]);
+            }
+            free(state);
+            return NULL;
+        }
         initRope(state->chicken[i]);
     }
     state->basket = (Basket*)malloc(sizeof(Basket));
     fread(state->basket, sizeof(Basket), 1, fp);
-    if (feof(fp) || ferror(fp)) goto failure;
-    resizeBasket(state->basket);
+    if (feof(fp) || ferror(fp)) {
+        for (int j = 0; j < n_chickens; j++) {
+            freeRope(state->chicken[j]->rope);
+            free(state->chicken[j]);
+        }
+        free(state->basket);
+        free(state);
+        return NULL;
+    }
+    state->drops = NULL;
     for (int i = 0; i < n_drops; i++) {
         Drop* drop = (Drop*)malloc(sizeof(Drop));
         fread(drop, sizeof(Drop), 1, fp);
-        if (feof(fp) || ferror(fp)) goto failure;
+        if (feof(fp) || ferror(fp)) {
+            for (int j = 0; j < n_chickens; j++) {
+                freeRope(state->chicken[j]->rope);
+                free(state->chicken[j]);
+            }
+            free(state->basket);
+            free(drop);
+            freeDropList(state->drops);
+            free(state);
+            return NULL;
+        }
         addToDropList(&state->drops, drop);
     }
+    state->perks = NULL;
     for (int i = 0; i < n_perks; i++) {
         Perk* perk = (Perk*)malloc(sizeof(Perk));
         fread(perk, sizeof(Perk), 1, fp);
-        if (feof(fp) || ferror(fp)) goto failure;
+        if (feof(fp) || ferror(fp)) {
+            for (int j = 0; j < n_chickens; j++) {
+                freeRope(state->chicken[j]->rope);
+                free(state->chicken[j]);
+            }
+            free(state->basket);
+            freeDropList(state->drops);
+            free(perk);
+            freePerkList(state->perks);
+            free(state);
+            return NULL;
+        }
         addToPerkList(&state->perks, perk);
     }
-    fread(&state->perkFlags, sizeof(unsigned int), 1, fp);
-    if (feof(fp) || ferror(fp)) goto failure;
-    goto success;
-failure:
-    for (int i = 0; i < n_chickens; i++)
-        if (state->chicken[i]) free(state->chicken[i]);
-    if (state->basket) free(state->basket);
+    fclose(fp);
+    return state;
+}
+
+int isFinished(GameState* state) { return state->t >= (state->start_t + state->duration); }
+
+void freeGameState(GameState* state)
+{
+    for (int j = 0; j < state->n_chickens; j++) {
+        freeRope(state->chicken[j]->rope);
+        free(state->chicken[j]);
+    }
+    free(state->basket);
     freeDropList(state->drops);
     freePerkList(state->perks);
     free(state);
-    return NULL;
-success:
-    return state;
 }
