@@ -89,19 +89,20 @@ void iMouse(int button, int state, int mx, int my)
 }
 void iPassiveMouseMove(int mx, int my)
 {
+    static int mx0 = mx, my0 = my;
     if (ui) handlePassiveMouse(ui, mx, my);
 }
 void iResize(int w, int h) {}
 void iKeyboard(unsigned char key)
 {
-    if (tolower(key) == 'f') toggleFullScreen();
-    if (game) keyDown(game, key);
+    if (ENTER_NAME_UI != activeUI && tolower(key) == 'f') toggleFullScreen();
+    if (game) keyDown(game, key, 0);
     if (ui) handleKeyInput(ui, key);
 }
 
 void iSpecialKeyboard(unsigned char key)
 {
-    if (game) keyDown(game, key);
+    if (game) keyDown(game, key, 1);
 }
 
 void iKeyboardUp(unsigned char key)
@@ -577,7 +578,7 @@ void updateGameUI()
 
 const char* help[] = {"Catch the Egg is a game where a chicken is sitting on a rope and laying eggs.",
                       "Your task is to catch the egg with the basket. Basket can be moved with the ",
-                      "mouse or keyboard left/right arrow keys.",
+                      "keyboard left/right arrow or A/D keys.",
                       "You get 1 points for a egg you catch. But if you are lucky and the chicken",
                       "lays a blue egg, you get 5 points. The even rarer golden egg will give you",
                       "10 points. But more often, the chicken might poop. Avoid the poop, you lose",

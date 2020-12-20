@@ -69,13 +69,24 @@ void drawBasketTop(Basket* basket)
     // iCircle(basket->edge_r.r, basket->height, 2);
 }
 
-void controlBasket(Basket* basket, unsigned char key, int down)
+void controlBasket(Basket* basket, unsigned char key, int special, int down)
 {
     if (down) {
-        switch (key) {
-            case GLUT_KEY_RIGHT: basket->moving = 1; break;
-            case GLUT_KEY_LEFT: basket->moving = -1; break;
-            default: break;
+        if (special) {
+            switch (key) {
+                case GLUT_KEY_LEFT: basket->moving = -1; break;
+                case GLUT_KEY_RIGHT: basket->moving = 1; break;
+                default: break;
+            }
+        }
+        else {
+            switch (key) {
+                case 'a':
+                case 'A': basket->moving = -1; break;
+                case 'd':
+                case 'D': basket->moving = 1; break;
+                default: break;
+            }
         }
     }
     else

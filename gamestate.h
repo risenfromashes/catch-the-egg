@@ -295,22 +295,22 @@ void drawFrame(GameState* state)
     }
 }
 
-void keyDown(GameState* state, unsigned char key)
+void keyDown(GameState* state, unsigned char key, int special)
 {
     static int saved = 0;
-    if (tolower(key) == 's')
+    if (!special && tolower(key) == 's')
         saveGameState(state);
-    else if (key == 'P') {
+    else if (!special && tolower(key) == 'p') {
         if (state->paused)
             resumeGame(state);
         else
             pauseGame(state);
     }
     else
-        controlBasket(state->basket, key, 1);
+        controlBasket(state->basket, key, special, 1);
 }
 
-void keyUp(GameState* state, unsigned char key) { controlBasket(state->basket, key, 0); }
+void keyUp(GameState* state, unsigned char key) { controlBasket(state->basket, key, 0, 0); }
 
 // structure
 // state - sizeof(GameState)
