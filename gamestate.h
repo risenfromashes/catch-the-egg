@@ -251,8 +251,9 @@ void pauseGame(GameState* state)
 }
 void updateTimes(GameState* state, double t0, double t)
 {
-    state->start_t = t - (t0 - state->start_t);
-    state->t0      = t - (t0 - state->t0);
+    state->start_t    = t - (t0 - state->start_t);
+    state->t0         = t - (t0 - state->t0);
+    state->wind.start = t - (t0 - state->wind.start);
     for (int i = 0; i < state->n_chickens; i++) {
         for (int j = 0; j < N_CHICKEN_ACTIVITY; j++) {
             state->chicken[i]->t[j] = t - (t0 - state->chicken[i]->t[j]);

@@ -590,7 +590,7 @@ const char* help[] = {"Catch the Egg is a game where a chicken is sitting on a r
                       "You might never run out of time if you keep catching clock perks.",
                       "But if you want longer or shorter games anyway, you can just select your desired",
                       "format or even go crazy with multiple chickens and ropes.",
-                      "Have fun!.",
+                      "Have fun!",
                       NULL};
 
 void addHelp()
@@ -607,7 +607,7 @@ void addHelp()
     cont->base.style.stroke.width    = 4;
     cont->base.style.fill.opacity    = 0.7;
     cont->base.style.padding         = {10, 10, 10, 10};
-    Label* title                     = createLabel("Catch the chicken");
+    Label* title                     = createLabel("Catch the Egg");
     title->base.style.margin         = {20, 20, 10, 10};
     title->base.style.textFill.color = {255, 255, 255};
     title->base.style.fontSize       = FONT_LARGE;
