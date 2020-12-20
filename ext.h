@@ -17,7 +17,7 @@
 #include "iGraphics.h"
 
 #ifdef FREEGLUT
-#include "OpenGL/include/freeglut.h"
+#include "include/freeglut.h"
 #endif
 
 #ifndef PI

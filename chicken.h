@@ -3,6 +3,7 @@
 #include "physics.h"
 #include "svg.h"
 #include "drop.h"
+#include "sound.h"
 
 #define FLYING_FRAMES   30
 #define FLIPPING_FRAMES 15
@@ -200,6 +201,7 @@ void flyChicken(Chicken* chicken)
 
 void flipChicken(Chicken* chicken)
 {
+    playSFX(SFX_CLUCK);
     assert(!chicken->in[CHICKEN_FLIP]);
     chicken->in[CHICKEN_FLIP] = 1;
     chicken->t[CHICKEN_FLIP]  = iGetTime();
@@ -226,5 +228,6 @@ Drop* layEgg(Chicken* chicken)
         type = DROP_SHIT;
     chicken->in[CHICKEN_LAYING] = 1;
     chicken->t[CHICKEN_LAYING]  = iGetTime();
+    playSFX(SFX_PLOP);
     return createDrop(type, eggPosition(chicken));
 }

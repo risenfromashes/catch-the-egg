@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "gamestate.h"
 #include "leaderboard.h"
+#include "sound.h"
 
 int width = 1280, height = 720;
 
@@ -112,10 +113,12 @@ void iSpecialKeyboardUp(unsigned char key)
 void iExit()
 {
     if (game) saveGameState(game);
+    freeSounds();
 }
 
-int main()
+int main(int argc, char* argsv[])
 {
+    loadSounds();
     loadStyles();
     loadUIAssets();
     loadLeaderBoards();
@@ -164,7 +167,10 @@ void loadStyles()
     buttonStyle.stroke.color        = {255, 255, 255};
     buttonStyle.margin.t            = 20;
     buttonStyle.padding             = {10, 12, 15, 15};
-    buttonStyle.stroke.width        = 4;
+    buttonStyle.stroke.width        = 3;
+    buttonStyle.fill.fill           = 1;
+    buttonStyle.fill.color          = {240, 148, 93};
+    buttonStyle.fill.opacity        = 1;
     buttonStyle.onMouse             = mouseOverButton;
 
     iconButtonStyle              = defaultStyle();
@@ -287,13 +293,11 @@ void addLeaderBoardSelectionButtons(Button* bfButton) { addSelectionButtons(bfBu
 void mouseOverButton(UIStyle* style, int enter)
 {
     if (enter) {
-        style->fill.fill    = 1;
-        style->fill.opacity = 0.25;
-        style->fill.color   = {255, 255, 255};
+        style->fill.opacity = 0.75;
         style->stroke.color = {255, 220, 212};
     }
     else {
-        style->fill.fill    = 0;
+        style->fill.opacity = 1;
         style->stroke.color = {255, 255, 255};
     }
 }

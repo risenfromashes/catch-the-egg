@@ -10,14 +10,14 @@ then
 else
     export PATH=/c/msys64/mingw32/bin:$PATH
 fi
-g++ -IOpenGL/include -LOpenGL/dll/$5 $3  -o ./bin/$5/$4.exe -mwindows -O3 -static-libgcc -static-libstdc++ -lfreeglut -lOPENGL32 -lgdi32
+g++ -Iinclude -Ldll/$5 $3  -o ./bin/$5/$4.exe -mwindows -O3 -static-libgcc -static-libstdc++ -lfreeglut -lOPENGL32 -lgdi32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_mixer
 
 cd $2
 7z a -tzip $4_src.zip $4.cpp #add other source files here
 cd "$1"
 mv $2/$4_src.zip ./release
 cd "$1"
-for file in ./OpenGL/dll/$5/*.dll
+for file in ./dll/$5/*.dll
 do
     cp $file ./bin/$5
 done

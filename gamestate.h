@@ -4,6 +4,7 @@
 #include "basket.h"
 #include "drop.h"
 #include "perk.h"
+#include "wind.h"
 
 SVGObject* Background;
 int        assetsLoaded = 0;
@@ -27,7 +28,7 @@ typedef struct {
     Drop*        drops;
     Perk*        perks;
     int          score;
-    double       wind;
+    Wind         wind;
     double       drag;
     double       t, t0;
     double       start_t;
@@ -40,6 +41,7 @@ typedef struct {
 void loadAssets()
 {
     Background = SVGParse("assets/scene/scene.svg");
+    loadWindFrames();
     loadChickenAssets();
     loadBasketAssets();
     loadDropAssets();
@@ -87,7 +89,7 @@ GameState* createGame(GameFormat format)
     else {
         state->chicken[0] = createChicken(500);
     }
-    state->wind      = 0;
+    state->wind      = {.active = 0, .T = 1.5, .F = 5};
     state->drag      = 0.0095;
     state->paused    = 0;
     state->score     = 0;
@@ -102,6 +104,7 @@ void generateDrop(GameState* state)
 {
     static int drop_his = 0;
     int        dropProb = 2 * (1 - drop_his / 500.0);
+    int        windProb = 7;
     int        r        = rand() % 1000;
     if (r < dropProb) {
         drop_his += 500;
@@ -109,6 +112,8 @@ void generateDrop(GameState* state)
                                 {30.0 + (double)(rand() % (1280 - 30)), 720.0});
         addToDropList(&state->drops, drop);
     }
+    if ((r > (1000 - windProb)) && !state->wind.active)
+        activateWind(&state->wind);
     else
         drop_his--;
 }
@@ -178,11 +183,16 @@ void handleCatch(GameState* state, Drop* drop)
         case DROP_SPEEDUP:
         case DROP_SIZEUP: handlePerkAdd(state, toPerk(drop->type)); break;
     }
+    if (drop->type == DROP_SHIT)
+        playSFX(SFX_SHIT);
+    else
+        playSFX(SFX_BASKET);
     state->score = max(state->score, 0);
 }
 void removeDrops(GameState* state)
 {
     Drop *drop, *next = state->drops;
+    int   caught = 0;
     while (next) {
         drop = next;
         next = drop->next;
@@ -222,8 +232,10 @@ void removeDrops(GameState* state)
             else
                 continue;
         catchAndRemove:
+            caught = 1;
             handleCatch(state, drop);
         remove:
+            if (!caught) playSFX(SFX_FALL);
             removeFromDropList(&state->drops, drop);
         }
     }
@@ -259,11 +271,9 @@ void resumeGame(GameState* state)
 
 void drawFrame(GameState* state)
 {
-    static int f = 0;
     if (!state->paused) {
         state->t  = iGetTime();
         double dt = state->t - state->t0;
-        // printf("t: %lf\n", state->t);
         generateDrop(state);
         Drop* chickenDrop;
         for (int i = 0; i < state->n_chickens; i++)
@@ -272,13 +282,14 @@ void drawFrame(GameState* state)
         renderSVGObject(Background, identity());
         drawBasketBottom(state->basket);
         drawBasketBottom(state->basket);
-        updateDrops(state->drops, state->drag, state->drag, dt);
+        updateDrops(state->drops, state->wind.active * state->wind.F * state->wind.dir, state->drag, dt);
         removeDrops(state);
         removePerks(state, state->t);
         drawDrops(state->drops);
         drawBasketTop(state->basket);
         for (int i = 0; i < state->n_chickens; i++)
             drawChicken(state->chicken[i], state->t, dt);
+        if (state->wind.active) drawWind(&state->wind, state->t);
         state->t0 = state->t;
     }
 }

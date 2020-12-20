@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "OpenGL/include/glut.h"
+#include "include/glut.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -17,7 +17,7 @@
 
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#include "OpenGL/include/stb_image.h"
+#include "include/stb_image.h"
 #endif
 
 int iScreenHeight, iScreenWidth;
