@@ -89,7 +89,7 @@ GameState* createGame(GameFormat format)
     else {
         state->chicken[0] = createChicken(500);
     }
-    state->wind      = {.active = 0, .T = 1.5, .F = 5};
+    state->wind      = {.active = 0, .T = 1.3, .F = 5};
     state->drag      = 0.0095;
     state->paused    = 0;
     state->score     = 0;

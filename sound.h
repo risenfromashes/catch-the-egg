@@ -3,8 +3,8 @@
 #include "include/SDL2/SDL.h"
 #include "include/SDL2/SDL_mixer.h"
 
-#define N_SFX 5
-typedef enum { SFX_BASKET, SFX_CLUCK, SFX_FALL, SFX_PLOP, SFX_SHIT } SFXType;
+#define N_SFX 6
+typedef enum { SFX_BASKET, SFX_CLUCK, SFX_FALL, SFX_PLOP, SFX_SHIT, SFX_WIND } SFXType;
 Mix_Chunk* SFX[N_SFX];
 Mix_Music* BGMusic;
 
@@ -18,6 +18,7 @@ void loadSounds()
     SFX[SFX_FALL]   = Mix_LoadWAV("assets/sounds/fall.wav");
     SFX[SFX_PLOP]   = Mix_LoadWAV("assets/sounds/plop.wav");
     SFX[SFX_SHIT]   = Mix_LoadWAV("assets/sounds/shit.wav");
+    SFX[SFX_WIND]   = Mix_LoadWAV("assets/sounds/wind.wav");
     Mix_Volume(-1, 25);
     Mix_VolumeMusic(10);
     Mix_PlayMusic(BGMusic, -1);

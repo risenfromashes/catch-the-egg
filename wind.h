@@ -1,7 +1,7 @@
 #pragma once
 
 #include "svg.h"
-
+#include "sound.h"
 #define N_WIND_FRAMES 15
 
 SVGObject*   WindFrames[N_WIND_FRAMES];
@@ -14,8 +14,8 @@ void         loadWindFrames()
         sprintf(path, "assets/wind/wind_%d.svg", i + 1);
         WindFrames[i] = SVGParse(path);
     }
-    SVGMinBounds(WindFrames[0], scaleMat({0.2, 0.2}));
-    WindTransform = matMul(translateMat(add(neg(WindFrames[0]->viewBox.min), {0, 360})), scaleMat({0.2, 0.2}));
+    SVGMinBounds(WindFrames[0], scaleMat({0.3, 0.3}));
+    WindTransform = matMul(translateMat(add(neg(WindFrames[0]->viewBox.min), {0, 360})), scaleMat({0.3, 0.3}));
 }
 
 typedef struct {
@@ -31,6 +31,7 @@ void activateWind(Wind* wind)
     wind->active = 1;
     wind->start  = iGetTime();
     wind->dir    = 2 * (rand() % 2) - 1;
+    playSFX(SFX_WIND);
 }
 
 void drawWind(Wind* wind, double t)
@@ -44,7 +45,8 @@ void drawWind(Wind* wind, double t)
         x = WindStart + (t - wind->start) / wind->T * (WindEnd - WindStart);
     else
         x = WindEnd - (t - wind->start) / wind->T * (WindEnd - WindStart);
-    TransformMat mat   = matMul(translateMat({x, 0}), WindTransform);
-    int          frame = (int)((t - wind->start) / wind->start * 240) % 15;
+    TransformMat mat           = matMul(translateMat({x, 0}), WindTransform);
+    int          frame         = (int)((t - wind->start) / wind->start * 480) % 15;
+    WindFrames[frame]->opacity = 0.5;
     renderSVGObject(WindFrames[frame], mat);
 }

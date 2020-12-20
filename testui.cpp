@@ -5,7 +5,7 @@
 
 int width = 1280, height = 720;
 
-typedef enum { NULL_UI, MAIN_UI, IN_GAME_UI, ENTER_NAME_UI, LEADERBOARD_UI } UIScreen;
+typedef enum { NULL_UI, MAIN_UI, IN_GAME_UI, ENTER_NAME_UI, LEADERBOARD_UI, HELP_UI } UIScreen;
 
 Layout*    ui;
 UIScreen   currentUI = NULL_UI;
@@ -27,6 +27,7 @@ Label*     scoreLabel;
 Label*     timeLabel;
 int        isFullScreen = 0;
 
+void addHelp();
 void addMainButtons();
 void addGameSelectionButtons(Button* ngButton);
 void addLeaderBoardSelectionButtons(Button* lbButton);
@@ -556,3 +557,5 @@ void updateGameUI()
     sprintf(str, "Time: %02d:%02d", rem / 60, rem % 60);
     updateText(timeLabel, str);
 }
+
+void addHelp() {}
