@@ -13,7 +13,8 @@ UIScreen   activeUI  = MAIN_UI;
 UIStyle    buttonStyle;
 UIStyle    buttonLabelStyle;
 UIStyle    iconButtonStyle;
-SVGObject* bg;
+UIStyle    helpLabelStyle;
+SVGObject *bg, *helpBg;
 SVGObject* closeIcon;
 SVGObject* fullscreenIcon;
 SVGObject* pauseIcon;
@@ -35,6 +36,7 @@ void mouseOverButton(UIStyle* style, int enter);
 void mouseOverIconButton(UIStyle* style, int enter);
 void handleNgButton(Button* b, int button, int state);
 void handleLbButton(Button* b, int button, int state);
+void handleHelpButton(Button* b, int button, int state);
 void handleGameSelection(Button* b, int button, int state);
 void handleLeaderBoardSelection(Button* b, int button, int state);
 void handleClose(Button* b, int button, int state);
@@ -145,12 +147,17 @@ void loadUI()
             addBackground(ui, bg);
             addTable();
             break;
+        case HELP_UI:
+            addBackground(ui, helpBg);
+            addHelp();
+            break;
     }
 }
 
 void loadUIAssets()
 {
     bg             = SVGParse("assets/scene/background.svg");
+    helpBg         = SVGParse("assets/scene/help.svg");
     closeIcon      = SVGParse("assets/icons/close.svg");
     fullscreenIcon = SVGParse("assets/icons/fullscreen.svg");
     pauseIcon      = SVGParse("assets/icons/pause.svg");
@@ -180,6 +187,10 @@ void loadStyles()
     iconButtonStyle.margin       = {10, 10, 10, 10};
     iconButtonStyle.padding      = {5, 5, 5, 5};
     iconButtonStyle.onMouse      = mouseOverIconButton;
+
+    helpLabelStyle                = defaultStyle();
+    helpLabelStyle.textFill.color = {255, 255, 255};
+    helpLabelStyle.margin         = {5, 5, 10, 10};
 }
 void toggleFullScreen()
 {
@@ -218,6 +229,7 @@ void addMainButtons()
     button[2]          = createButton("LEADERBOARD", NULL);
     button[2]->onClick = handleLbButton;
     button[3]          = createButton("HELP", NULL);
+    button[3]->onClick = handleHelpButton;
     button[4]          = createButton("EXIT", NULL);
     button[4]->onClick = handleClose;
     for (int i = 0; i < 5; i++) {
@@ -336,6 +348,10 @@ void handleLbButton(Button* b, int button, int state)
         }
     }
 }
+void handleHelpButton(Button* b, int button, int state)
+{
+    if (state == GLUT_DOWN) { activeUI = HELP_UI; }
+}
 
 void mouseOverIconButton(UIStyle* style, int enter)
 {
@@ -358,6 +374,7 @@ void handleClose(Button* b, int button, int state)
                 }
                 activeUI = MAIN_UI;
                 break;
+            case HELP_UI:
             case LEADERBOARD_UI: activeUI = MAIN_UI; break;
         }
     }
@@ -558,4 +575,50 @@ void updateGameUI()
     updateText(timeLabel, str);
 }
 
-void addHelp() {}
+const char* help[] = {"Catch the Egg is a game where a chicken is sitting on a rope and laying eggs.",
+                      "Your task is to catch the egg with the basket. Basket can be moved with the ",
+                      "mouse or keyboard left/right arrow keys.",
+                      "You get 1 points for a egg you catch. But if you are lucky and the chicken",
+                      "lays a blue egg, you get 5 points. The even rarer golden egg will give you",
+                      "10 points. But more often, the chicken might poop. Avoid the poop, you lose",
+                      "10 points if it ends up in your basket.",
+                      "Your goal is to collect as many points as you can in the game time limit.",
+                      "Aside from eggs, the sky can bestow perks on you in different shapes and forms.",
+                      "The thunder perk, makes your basket much faster.",
+                      "Everything falls in much slower velocity if you catch the parachute perk.",
+                      "The basket sizeup, perk, makes your basket much larger.",
+                      "You might never run out of time if you keep catching clock perks.",
+                      "But if you want longer or shorter games anyway, you can just select your desired",
+                      "format or even go crazy with multiple chickens and ropes.",
+                      "Have fun!.",
+                      NULL};
+
+void addHelp()
+{
+    Button* closeButton              = createCloseButton();
+    Div*    cont                     = createDiv();
+    cont->base.style.margin          = {20, 20, 20, 20};
+    cont->base.style.alignment.v     = ALIGN_VCENTER;
+    cont->base.style.height          = 0;
+    cont->base.style.width           = 0;
+    cont->base.style.fill.fill       = 1;
+    cont->base.style.fill.color      = {12, 124, 168};
+    cont->base.style.stroke.color    = {12, 124, 168};
+    cont->base.style.stroke.width    = 4;
+    cont->base.style.fill.opacity    = 0.7;
+    cont->base.style.padding         = {10, 10, 10, 10};
+    Label* title                     = createLabel("Catch the chicken");
+    title->base.style.margin         = {20, 20, 10, 10};
+    title->base.style.textFill.color = {255, 255, 255};
+    title->base.style.fontSize       = FONT_LARGE;
+    title->base.style.alignment.h    = ALIGN_HCENTER;
+    addChild((Element*)cont, (Element*)title);
+    for (int i = 0; help[i]; i++) {
+        Label* text      = createLabel(help[i]);
+        text->base.style = helpLabelStyle;
+        if (i == 0) text->base.style.margin.t = 60;
+        addChild((Element*)cont, (Element*)text);
+    }
+    addToLayout(ui, (Element*)cont);
+    addToLayout(ui, (Element*)closeButton);
+}

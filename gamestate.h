@@ -297,11 +297,9 @@ void drawFrame(GameState* state)
 void keyDown(GameState* state, unsigned char key)
 {
     static int saved = 0;
-    if (tolower(key) == 's') {
+    if (tolower(key) == 's')
         saveGameState(state);
-        printf("saved\n");
-    }
-    else if (key == ' ') {
+    else if (key == 'P') {
         if (state->paused)
             resumeGame(state);
         else
